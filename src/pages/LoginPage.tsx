@@ -9,6 +9,8 @@ import { authenticateUser } from "@/lib/api";
 import { ArrowRight } from "lucide-react";
 
 import LogoPng from '../../public/logo.svg'
+import type { NotificationSettings } from "@/components/app/notification-setting";
+import { getNostrKeyPair, registerNotifSettings } from "@/lib/nostr";
 
 export const LoginPage = () => {
     const { storeWallet } = useWallet()
@@ -17,12 +19,17 @@ export const LoginPage = () => {
     const [loading, setLoading] = useState(false)
     const navigate = useNavigate()
 
-    const handlePassphraseSubmit = async (mnemonic: string) => {
+    const handlePassphraseSubmit = async (mnemonic: string, notifSettings: NotificationSettings) => {
         setLoading(true)
         console.log('authenticating user...')
+
+        const nostrKeyPair = getNostrKeyPair(mnemonic)
+        await registerNotifSettings(nostrKeyPair, notifSettings)
+
         const { token, expiresAt } = await authenticateUser(mnemonic)
         localStorage.setItem('BITLASSO_SESSION_TOKEN', token)
         localStorage.setItem('BITLASSO_SESSION_EXPIRES_AT', expiresAt.toString())
+        localStorage.setItem('BITLASSO_NOSTRKEYPAIR', JSON.stringify(nostrKeyPair))
         await storeWallet(mnemonic)
 
         setLoading(false)
@@ -30,9 +37,9 @@ export const LoginPage = () => {
     }
 
     return (
-        <div className="flex min-h-svh">
+        <div className="grid grid-cols-2 min-h-svh">
             {/* Left panel -- branding */}
-            <div className="relative hidden flex-1 flex-col justify-between overflow-hidden bg-white p-12 lg:flex">
+            <div className="col-1 fixed h-full hidden flex-1 flex-col justify-between overflow-hidden bg-white p-12 lg:flex">
                 {/* Subtle grid pattern */}
                 <div
                     className="pointer-events-none absolute inset-0 opacity-[0.03]"
@@ -82,7 +89,7 @@ export const LoginPage = () => {
             </div>
 
             {/* Right panel -- form */}
-            <div className="flex flex-1 items-center justify-center px-6 py-12 lg:px-12 bg-slate-50">
+            <div className="col-2 flex flex-1 items-center justify-center px-6 py-12 lg:px-12 bg-slate-50">
                 <div className="w-full max-w-lg lg:max-w-2xl">
                     {/* Mobile logo */}
                     <div className="mb-10 lg:hidden">

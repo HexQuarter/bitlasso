@@ -7,15 +7,18 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Copy } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { NotificationSettingsForm, type NotificationSettings } from "./notification-setting";
 
 type Props = {
-    onSubmit: (mnemonic: string) => void
+    onSubmit: (mnemonic: string, notificationSettings: NotificationSettings) => void
     onBack: () => void
     loading: boolean
 }
 
-export const CreateWalletForm: React.FC<Props> = ({ onSubmit, onBack ,loading = false}) => {
+export const CreateWalletForm: React.FC<Props> = ({ onSubmit, onBack, loading = false }) => {
     const [mnemonic, setMnemonic] = useState<string[]>(["", "", "", "", "", "", "", "", "", "", "", ""]);
+    const [email, setEmail] = useState<undefined | string>(undefined)
+    const [npub, setNpub] = useState<undefined | string>(undefined)
 
     useEffect(() => {
         const generatedMnemonic = bip39.generateMnemonic(wordlist);
@@ -29,6 +32,10 @@ export const CreateWalletForm: React.FC<Props> = ({ onSubmit, onBack ,loading = 
         setTimeout(() => {
             toast.dismiss(toastId)
         }, 2000)
+    }
+
+    const handleSubmit = () => {
+        onSubmit(mnemonic.join(' '), { email, npub })
     }
 
     return (
@@ -47,11 +54,18 @@ export const CreateWalletForm: React.FC<Props> = ({ onSubmit, onBack ,loading = 
                     <div className='flex text-sm text-gray-600 gap-2 justify-end' onClick={() => copy()}>
                         <Copy className="w-5" />
                     </div>
+                    <div className="mt-4">
+                        <NotificationSettingsForm
+                            onEmailChange={setEmail}
+                            onNPubChange={setNpub}
+                            email={email} 
+                            npub={npub} />
+                    </div>
                 </div>
             </div>
             <div className="flex lg:flex-row flex-col gap-2 items-center w-full">
                 <Button variant='outline' className='flex-1 w-full' onClick={() => onBack()}>Back</Button>
-                <Button type="submit" className='flex-1 w-full'  onClick={() => onSubmit(mnemonic.join(' '))} disabled={loading}>{loading && <Spinner />} Open the app</Button>
+                <Button type="submit" className='flex-1 w-full' onClick={handleSubmit} disabled={loading}>{loading && <Spinner />} Open the app</Button>
             </div>
         </div>
     )

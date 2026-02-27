@@ -7,9 +7,10 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { NotificationSettingsForm, type NotificationSettings } from "./notification-setting";
 
 type Props = {
-    onSubmit: (mnemonic: string) => void
+    onSubmit: (mnemonic: string, noticiationSettings: NotificationSettings) => void
     loading: boolean
     onBack: () => void
 }
@@ -18,6 +19,8 @@ export const PassphraseForm: React.FC<Props> = ({ onSubmit, onBack, loading = fa
     const [mnemonic, setMnemonic] = useState<string[]>(["", "", "", "", "", "", "", "", "", "", "", ""]);
     const [error, setError] = useState<string | null>(null);
     const [valid, setValid] = useState<boolean>(false);
+    const [email, setEmail] = useState<undefined | string>(undefined)
+    const [npub, setNpub] = useState<undefined | string>(undefined)
 
     useEffect(() => {
         const handlePaste = (e: ClipboardEvent) => {
@@ -76,7 +79,7 @@ export const PassphraseForm: React.FC<Props> = ({ onSubmit, onBack, loading = fa
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSubmit(mnemonic.join(' '))
+        onSubmit(mnemonic.join(' '), { email, npub })
     }
 
     return (
@@ -97,6 +100,13 @@ export const PassphraseForm: React.FC<Props> = ({ onSubmit, onBack, loading = fa
                         </Field>
                     ))}
                 </div>
+                {valid && <div className="mt-4">
+                    <NotificationSettingsForm
+                        onEmailChange={setEmail}
+                        onNPubChange={setNpub}
+                        email={email}
+                        npub={npub} />
+                </div>}
                 <div className="flex flex-col lg:flex-row gap-2">
                     <Button variant='outline' className='flex-1 w-full' onClick={() => onBack()}>Back</Button>
                     {error && <p className="col-span-3 text-red-500 text-sm italic mt-2">{error}</p>}

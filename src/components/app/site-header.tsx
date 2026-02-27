@@ -1,5 +1,5 @@
-import { IconDashboard, type Icon } from "@tabler/icons-react"
-import { useLocation, useNavigate } from "react-router"
+import { IconDashboard, IconSettings2, type Icon } from "@tabler/icons-react"
+import { Link, useLocation, useNavigate } from "react-router"
 import { useEffect, useState } from "react"
 import { useWallet } from "@/hooks/use-wallet"
 import { shortenAddress } from "@/lib/utils"
@@ -32,9 +32,13 @@ export function SiteHeader() {
     {
       title: 'Dashboard',
       url: '/app/dashboard',
-      visible: true,
       selected: true,
       icon: IconDashboard
+    },
+    {
+      title: 'Settings',
+      url: '/app/settings',
+      icon: IconSettings2
     }
   ])
 
@@ -53,6 +57,7 @@ export function SiteHeader() {
   }, [wallet])
 
   const logout = () => {
+    localStorage.removeItem('BITLASSO_NOSTRKEYPAIR')
     localStorage.removeItem('BITLASSO_MNEMONIC')
     localStorage.removeItem('BITLASSO_SESSION_TOKEN')
     localStorage.removeItem('BITLASSO_SESSION_EXPIRES_AT')
@@ -143,27 +148,26 @@ export function SiteHeader() {
         <div className='font-serif tracking-tighter text-foreground flex items-center'>
           <p className="flex gap-2 items-end">
             <a className="text-4xl flex items-center gap-2" href='#'>
-              <img src={LogoPng} className="h-10"/>
+              <img src={LogoPng} className="h-10" />
               <span><span className="text-primary">bit</span>lasso</span>
             </a>
           </p>
         </div>
-        {/* <div className="flex items-center">
-          {links.map((l) => (
+        <div className="flex items-center">
+          {menuItems.map((m, i) => (
             <Link
-              key={l.href}
-              to={l.href}
-              className="rounded-full px-4 py-2 text-[13px] font-medium text-muted-foreground transition-all duration-300 hover:bg-secondary hover:text-primary hover:text-foreground"
+              key={i}
+              to={m.url}
+              className={`flex items-center gap-1 ${m.selected ? 'text-primary' :''} rounded-full px-4 py-2 text-[13px] font-medium text-muted-foreground transition-all duration-300 hover:bg-secondary hover:text-primary hover:text-foreground`}
             >
-              {l.label}
+              {m.icon && <m.icon className="h-5" />}
+              {m.title}
             </Link>
           ))}
-        </div> */}
+        </div>
       </div>
 
       <div className="hidden items-center gap-1 md:flex">
-
-
         {wallet &&
           <div>
             <div className="flex text-xs items-center gap-2 text-gray-500 hidden sm:flex">
