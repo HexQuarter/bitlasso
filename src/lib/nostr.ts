@@ -17,12 +17,12 @@ const RELAYS = [
 ];
 
 enum EventKind {
-    PAYMENT_REQ = 30003,
-    RECEIPT_METADATA = 30004,
-    NOTIF_SETTING = 30005,
+    PAYMENT_REQ = 6003,
+    RECEIPT = 6004,
+    SETTING = 6005,
+    BTC_PAYMENT = 6011,
+    SPARK_REDEEM = 6012,
     BTC_PRICE = 30010,
-    BTC_PAYMENT = 30011,
-    SPARK_REDEEM = 30012
 }
 
 export type NostrKeyPair = {
@@ -54,7 +54,7 @@ export const getNostrKeyPair = (mnemonic: string): NostrKeyPair => {
 
 export const registerNotifSettings = async (wallet: Wallet, notifSettings: NotificationSettings) => {
     const event = {
-        kind: EventKind.NOTIF_SETTING,
+        kind: EventKind.SETTING,
         content: JSON.stringify(notifSettings),
         pubkey: wallet.getNostrPublicKey(),
         created_at: Math.floor(Date.now() / 1000),
@@ -67,7 +67,7 @@ export const registerNotifSettings = async (wallet: Wallet, notifSettings: Notif
 
 export const getNotifSettings = async (wallet: Wallet): Promise<NotificationSettings | undefined> => {
     const events = await pool.querySync(RELAYS, {
-        kinds: [EventKind.NOTIF_SETTING],
+        kinds: [EventKind.SETTING],
         authors: [wallet.getNostrPublicKey()],
         "#n": ["0"] // link to notification settings
     });
@@ -195,7 +195,7 @@ const fetchPaymentDetails = async (requestId: string) => {
     const events = await pool.querySync(RELAYS, {
         kinds: [EventKind.BTC_PAYMENT],
         authors: [import.meta.env.VITE_API_NOSTR_PUB],
-        "#f": [requestId]
+        "#e": [requestId]
     });
     if (events.length == 0) {
         return undefined
@@ -203,9 +203,9 @@ const fetchPaymentDetails = async (requestId: string) => {
 
     const tagsMap = new Map<string, string>(events[0].tags as [["string", 'string']])
     return {
-        settlementMode: tagsMap.get('s') as 'btc' | 'spark',
-        transaction: tagsMap.get('t'),
-        refPriceId: tagsMap.get('refPriceId')
+        settlementMode: tagsMap.get('settlementMode') as 'btc' | 'spark',
+        transaction: tagsMap.get('transaction') as string,
+        refPriceId: tagsMap.get('refPriceId') as string
     }
 }
 
@@ -213,7 +213,7 @@ const fetchRedeemDetails = async (requestId: string) => {
     const events = await pool.querySync(RELAYS, {
         kinds: [EventKind.SPARK_REDEEM],
         authors: [import.meta.env.VITE_API_NOSTR_PUB],
-        "#f": [requestId]
+        "#e": [requestId]
     });
     if (events.length == 0) {
         return undefined
@@ -221,8 +221,8 @@ const fetchRedeemDetails = async (requestId: string) => {
 
     const tagsMap = new Map<string, string>(events[0].tags as [["string", 'string']])
     return {
-        redeemAmount: Number(tagsMap.get('a')),
-        transaction: tagsMap.get('t'),
+        redeemAmount: Number(tagsMap.get('redeemAmount')),
+        transaction: tagsMap.get('redeemTransaction'),
     }
 }
 
@@ -245,7 +245,7 @@ export type PaymentRequest = {
 
 export const publishReceiptMetadata = async (wallet: Wallet, transactionId: string, amount: number, createdAt: Date, description?: string, recipient?: string, paymentId?: string) => {
     const event = {
-        kind: EventKind.RECEIPT_METADATA,
+        kind: EventKind.RECEIPT,
         content: JSON.stringify({
             amount,
             description,
@@ -268,7 +268,7 @@ export const publishReceiptMetadata = async (wallet: Wallet, transactionId: stri
 
 export const listReceipts = async (wallet: Wallet): Promise<Receipt[]> => {
     const events = await pool.querySync(RELAYS, {
-        kinds: [EventKind.RECEIPT_METADATA],
+        kinds: [EventKind.RECEIPT],
         authors: [wallet.getNostrPublicKey()]
     });
     if (events.length == 0) {
@@ -289,4 +289,20 @@ export const listReceipts = async (wallet: Wallet): Promise<Receipt[]> => {
             transaction: tagsMap.get("d")
         } as Receipt
     })
+}
+
+export const getBitcoinPrice = async (id: string): Promise<{ usdPrice: number, date: Date } | undefined> => {
+    const payment = await fetchPaymentDetails(id)
+    if (!payment) return undefined
+
+    console.log(payment)
+    const events = await pool.querySync(RELAYS, {
+        ids: [payment.refPriceId]
+    });
+    if (events.length == 0) {
+        return undefined
+    }
+
+    const { usdPrice } = JSON.parse(events[0].content)
+    return { usdPrice, date: new Date(events[0].created_at * 1000) }
 }

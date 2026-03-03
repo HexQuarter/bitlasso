@@ -654,7 +654,6 @@ export class BreezSparkWallet extends TypedEventEmitter<SparkEvent> implements W
 
     async sparkStatus(): Promise<{ active: boolean, status: string }> {
         const sparkStatus = await getSparkStatus()
-        console.log('spark status', sparkStatus)
         return { active: sparkStatus.status == 'operational' || sparkStatus.status == 'degraded', status: sparkStatus.status }
     }
 
