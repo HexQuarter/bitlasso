@@ -6,11 +6,10 @@ import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { WalletCard } from "@/components/app/wallet-card"
-import { type IssuanceStats } from "@/components/app/token-card"
 import { IssueReceiptForm, type IssueReceiptData } from "@/components/app/issue-receipt"
 import { PaymentRequestForm, type PaymentRequestData } from "@/components/app/payment-request"
 import { ReceiptTable, type Receipt } from "@/components/app/receipt-table"
-import { type SparkPayment, type TokenBalanceMap, type TokenMetadata, type TokenTransaction, type Wallet } from "@/lib/wallet"
+import { type SparkPayment, type TokenBalanceMap, type TokenMetadata, type TokenStats, type Wallet } from "@/lib/wallet"
 import { PaymentTable, type Payment } from "@/components/app/payment-table"
 import type { Asset } from "@/components/app/send"
 import { send } from "@/lib/utils"
@@ -29,7 +28,7 @@ export const DashboardPage = () => {
     const [initializing, setInitializing] = useState(true)
     const [btcBalance, setBtcBalance] = useState(0n)
     const [tokenBalances, setTokenBalances] = useState<TokenBalanceMap | undefined>(undefined)
-    const [issuanceStats, setIssuanceStats] = useState<IssuanceStats[]>([])
+    const [issuanceStats, setIssuanceStats] = useState<TokenStats | undefined>(undefined)
     const [tokenMetadata, setTokenMetadata] = useState<TokenMetadata | undefined>(undefined)
     const [addresses, setAddresses] = useState<{ btc: string, ln: string, spark: string } | null>(null)
     const [price, setPrice] = useState(0)
@@ -49,47 +48,10 @@ export const DashboardPage = () => {
     }
 
     const refreshIssuanceStats = async (wallet: Wallet, metadata: TokenMetadata) => {
-        let payments: TokenTransaction[] = []
-        let offset = 0
-        const pageSize = 10
-        let hasMore = true
-
-        while (hasMore) {
-            const transactions = await wallet.listTokenTransactions(metadata.identifier, offset, pageSize)
-            if (transactions.length === 0) {
-                hasMore = false
-            } else {
-                payments = payments.concat(transactions)
-                offset += pageSize
-            }
+        const stats = await wallet.getTokenStats(metadata)
+        if (stats) {
+            setIssuanceStats(stats)
         }
-
-        const issuanceStats = payments
-            .sort((a, b) => b.date.getTime() - a.date.getTime())
-            .reduce((acc, tx) => {
-                if (tx.type == 'mint') {
-                    const amount = Number(tx.amount) / (10 ** metadata.decimals)
-                    acc.amount += amount
-                    acc.dates.push({ date: tx.date, amount: amount, transfers: 0, type: 'mint', tx: tx.txHash || '' })
-                }
-                else if (tx.type == 'burn') {
-                    const amount = Number(tx.amount) / (10 ** metadata.decimals)
-                    acc.amount -= amount
-                    acc.dates.push({ date: tx.date, amount: amount, transfers: 0, type: 'burn', tx: tx.txHash || '' })
-                }
-                else {
-                    const amount = Number(tx.amount) / (10 ** metadata.decimals)
-                    acc.dates.push({ date: tx.date, amount: amount, transfers: amount, type: 'transfer', tx: tx.txHash || '' })
-                }
-
-                return acc
-
-            }, {
-                amount: 0, dates: []
-            } as { amount: number, dates: any[] })
-
-        const stats = issuanceStats.dates
-        setIssuanceStats(stats)
     }
 
     useEffect(() => {
@@ -118,36 +80,44 @@ export const DashboardPage = () => {
 
             setAddresses(addresses)
 
-            const prices = await wallet.fetchPrices()
-            const p = prices.find(p => p.currency.toUpperCase() == currency.toUpperCase())
-            if (p) {
-                setPrice(p.value)
-            }
-
-            try {
-                const metadata = await wallet.getTokenMetadata()
-                if (metadata) {
-                    setTokenMetadata(metadata)
-                    await refreshIssuanceStats(wallet, metadata)
+            setTimeout(async () => {
+                const prices = await wallet.fetchPrices()
+                const p = prices.find(p => p.currency.toUpperCase() == currency.toUpperCase())
+                if (p) {
+                    setPrice(p.value)
                 }
-            }
-            catch (e: any) { }
+            }, 0)
 
-            await updateBalance(wallet)
-
-            wallet.on('synced', async () => {
-                await updateBalance(wallet)
-
-                const payments = await wallet.listPayments()
-                setWalletHistory(payments)
-
-                if (tokenMetadata) {
-                    await refreshIssuanceStats(wallet, tokenMetadata)
+            setTimeout(async () => {
+                try {
+                    const metadata = await wallet.getTokenMetadata()
+                    if (metadata) {
+                        setTokenMetadata(metadata)
+                        await refreshIssuanceStats(wallet, metadata)
+                    }
                 }
+                catch (e: any) { }
             })
 
-            await refreshPaymentRequests()
-            await refreshReceipts()
+            setTimeout(async () => {
+                await updateBalance(wallet)
+
+                wallet.on('synced', async () => {
+                    await updateBalance(wallet)
+
+                    const payments = await wallet.listPayments()
+                    setWalletHistory(payments)
+
+                    if (tokenMetadata) {
+                        refreshIssuanceStats(wallet, tokenMetadata)
+                    }
+                })
+            }, 0)
+
+            setTimeout(async () => {
+                await refreshPaymentRequests()
+                await refreshReceipts()
+            }, 0)
 
             setInterval(async () => {
                 const prices = await wallet.fetchPrices()
@@ -157,7 +127,7 @@ export const DashboardPage = () => {
                 }
             }, 60_000)
 
-            setInitializing(false)
+            setTimeout(() => setInitializing(false), 500)
         }
 
         fetchData()
@@ -340,17 +310,13 @@ export const DashboardPage = () => {
         return paymentRequests.filter(p => p.settleTx === undefined).length
     }, [paymentRequests])
 
-    const redeemedTokens = useMemo(() => {
-        return issuanceStats.filter(s => s.type == 'burn').reduce((acc, p) => acc + p.amount, 0)
-    }, [issuanceStats])
-
     return (
         <div className="flex flex-1 flex-col h-full w-full">
             <div className="flex flex-col w-full h-full">
                 <div className="flex flex-col gap-5 w-full">
                     <div className="flex flex-col w-full gap-10">
                         <div className="flex flex-col gap-2 justify-between">
-                            <h1 className="text-4xl font-serif font-normal text-foreground flex items-center">Dashboard {initializing && <Spinner className="ml-2 text-primary"/>}</h1>
+                            <h1 className="text-4xl font-serif font-normal text-foreground flex items-center">Dashboard {initializing && <Spinner className="ml-2 text-primary" />}</h1>
                             <h2 className="text-1xl font-light text-muted-foreground">Turn paid work into Bitcoin-anchored receipts that reward repeat clients.</h2>
                         </div>
                         {initializing && tokenMetadata &&
@@ -489,18 +455,12 @@ export const DashboardPage = () => {
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </CardHeader>
-                                        <CardContent className="flex flex-col gap-2">
-                                            <span className="text-2xl font-semibold">{issuanceStats.reduce((acc, s) => {
-                                                if (s.type == 'mint') {
-                                                    acc += s.amount
-                                                }
-                                                if (s.type == 'burn') {
-                                                    acc -= s.amount
-                                                }
-                                                return acc
-                                            }, 0)} {tokenMetadata.symbol}</span>
-                                            <span className="text-muted-foreground text-xs">{redeemedTokens} redeemed</span>
-                                        </CardContent>
+                                        {issuanceStats &&
+                                            <CardContent className="flex flex-col gap-2">
+                                                <span className="text-2xl font-semibold">{issuanceStats.mints} {tokenMetadata.symbol}</span>
+                                                <span className="text-muted-foreground text-xs">{issuanceStats.burns} redeemed</span>
+                                            </CardContent>
+                                        }
                                     </Card>
                                 </div>
                                 <div className="flex flex-col gap-2">
@@ -590,7 +550,7 @@ export const DashboardPage = () => {
                                         </div>
                                     }
                                     {!initializing &&
-                                        <div className="lg:max-w-full max-w-xs">
+                                        <div className="md:max-w-full max-w-xs">
                                             <PaymentTable
                                                 data={paymentRequests.map(r => ({
                                                     createdAt: r.createdAt,
@@ -641,7 +601,7 @@ export const DashboardPage = () => {
                                                 ))}
                                             </div>
                                         }
-                                        <div className="lg:max-w-full max-w-xs">
+                                        <div className="md:max-w-full max-w-xs">
                                             {!initializing &&
                                                 <ReceiptTable
                                                     network={wallet?.getNetwork() as string}

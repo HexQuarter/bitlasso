@@ -2,19 +2,23 @@ import init, {
     defaultConfig,
     type Seed,
     BreezSdk,
-    type AssetFilter,
     type SdkEvent,
     type DepositInfo,
     type Payment,
     type PrepareSendPaymentResponse,
     type PrepareLnurlPayResponse,
     SdkBuilder,
-    getSparkStatus
+    getSparkStatus,
 } from "@breeztech/breez-sdk-spark/web";
 import { Network, SparkWallet } from "@buildonspark/spark-sdk";
 import { getNostrKeyPair, type NostrKeyPair } from "./nostr";
 import { finalizeEvent, type EventTemplate, type VerifiedEvent } from "nostr-tools";
-import { hexToBytes } from "nostr-tools/utils";
+import { bytesToHex, hexToBytes } from "nostr-tools/utils";
+
+const BURN_PUBLIC_KEY =
+    "020202020202020202020202020202020202020202020202020202020202020202";
+
+const uint8ArrayToNum = (data: Uint8Array) => data.reduce((acc, byte) => (acc << 8n) | BigInt(byte), 0n);
 
 export type TokenMetadata = {
     identifier: string;
@@ -29,7 +33,12 @@ export type TokenBalanceMap = Map<string, {
     tokenMetadata: TokenMetadata;
 }>;
 
-export type TokenTransaction = { txHash: string | undefined; amount: bigint; date: Date, type: 'mint' | 'burn' };
+export type TokenStats = {
+    burns: number
+    mints: number
+    transfers: number
+    circulating: number
+}
 
 export type Balance = {
     balance: bigint;
@@ -47,7 +56,7 @@ interface _SparkWallet {
     mintTokens: (amount: bigint) => Promise<{ id: string, timestamp: Date }>;
     burnTokens: (amount: bigint) => Promise<{ id: string, timestamp: Date }>;
     getTokenMetadata: (identifier?: string) => Promise<TokenMetadata | undefined>;
-    listTokenTransactions: (tokenIdentifier: string, offset?: number, limit?: number) => Promise<Array<TokenTransaction>>;
+    getTokenStats: (tokenMetadata: TokenMetadata) => Promise<undefined | TokenStats>;
     createToken: (name: string, symbol: string, initialSupply: bigint, decimals: number, isFreezable: boolean) => Promise<{ tokenId: string }>;
     getBalance: () => Promise<Balance>;
     fetchPrices(): Promise<PriceRate[]>
@@ -75,6 +84,8 @@ interface NostrWallet {
 export type Wallet = _SparkWallet & NostrWallet
 
 let wasmInit: Promise<void> | null = null;
+
+
 
 type EventMap = Record<string, any>;
 class TypedEventEmitter<Events extends EventMap> {
@@ -356,25 +367,50 @@ export class BreezSparkWallet extends TypedEventEmitter<SparkEvent> implements W
         }
     }
 
-    async listTokenTransactions(tokenIdentifier: string, offset: number = 0, limit: number = 10): Promise<Array<TokenTransaction>> {
-        const assetFilter: AssetFilter = { type: 'token', tokenIdentifier }
-        const response = await this.sdk.listPayments({
-            statusFilter: ['completed'],
-            assetFilter,
-            offset: offset,
-            limit: limit,
-            sortAscending: false
-        })
-        const payments = response.payments
+    async getTokenStats(tokenMetadata: TokenMetadata): Promise<undefined | TokenStats> {
+        try {
+            const all = [];
 
-        const transactions = payments.map(payment => ({
-            txHash: payment.details?.type == 'token' ? payment.details.txHash : undefined,
-            type: payment.paymentType == 'send' ? 'burn' : 'mint',
-            amount: payment.amount,
-            date: new Date(payment.timestamp * 1000)
-        })) as TokenTransaction[]
+            let cursor: string | undefined;
 
-        return transactions
+            do {
+                const page = await this.sparkWallet.queryTokenTransactionsWithFilters({
+                    tokenIdentifiers: [tokenMetadata.identifier],
+                    pageSize: 50,
+                    cursor,
+                    direction: "NEXT",
+                });
+
+                all.push(...page.tokenTransactionsWithStatus);
+                cursor = page.pageResponse?.nextCursor;
+            } while (cursor);
+
+            const res = all.reduce((acc, t) => {
+                if (t.tokenTransaction?.tokenInputs?.$case == 'mintInput') {
+                    const amount = uint8ArrayToNum(t.tokenTransaction.tokenOutputs[0].tokenAmount)
+                    acc.mint += Number(amount) / (10 ** tokenMetadata.decimals)
+                }
+                if (t.tokenTransaction?.tokenInputs?.$case == 'transferInput') {
+                    const amount = uint8ArrayToNum(t.tokenTransaction.tokenOutputs[0].tokenAmount)
+                    if (bytesToHex(t.tokenTransaction.tokenOutputs[0].ownerPublicKey) == BURN_PUBLIC_KEY) {
+                        acc.burn += Number(amount) / (10 ** tokenMetadata.decimals)
+                    }
+                    acc.transfers += Number(amount) / (10 ** tokenMetadata.decimals)
+                }
+                return acc
+            }, { burn: 0, mint: 0, transfers: 0 } as { burn: number, mint: number, transfers: number })
+
+            return {
+                burns: res.burn,
+                mints: res.mint,
+                transfers: res.transfers,
+                circulating: res.mint - res.burn
+            }
+        }
+        catch (e) {
+            console.log(e)
+            return undefined
+        }
     }
 
     async createToken(name: string, symbol: string, initialSupply: bigint, decimals: number = 1, isFreezable: boolean = false): Promise<{ tokenId: string; }> {
