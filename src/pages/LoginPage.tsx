@@ -30,9 +30,10 @@ export const LoginPage = () => {
     }
 
     return (
-        <div className="grid grid-cols-2 min-h-svh">
+        <div className="lg:grid lg:grid-cols-5 min-h-svh">
             {/* Left panel -- branding */}
-            <div className="col-1 fixed h-full hidden flex-1 flex-col justify-between overflow-hidden bg-white p-12 lg:flex">
+            <div className="lg:col-1"></div>
+            <div className="h-full fixed flex col-1 flex-col justify-between overflow-hidden bg-white p-12 hidden lg:flex">
                 {/* Subtle grid pattern */}
                 <div
                     className="pointer-events-none absolute inset-0 opacity-[0.03]"
@@ -55,7 +56,7 @@ export const LoginPage = () => {
 
                 {/* Center content */}
                 <div className="relative z-10 max-w-md">
-                    <p className="font-mono text-[11px] font-medium tracking-[0.2em] text-foreground/40 uppercase">
+                    <p className="font-mono text-sm font-medium tracking-[0.2em] text-foreground/40 uppercase">
                         Business Dashboard
                     </p>
                     <h1 className="mt-4 font-serif text-[clamp(2rem,4vw,3.5rem)] leading-[1.1] tracking-[-0.02em] text-foreground">
@@ -74,7 +75,7 @@ export const LoginPage = () => {
                 {/* Bottom quote */}
                 <div className="relative z-10">
                     <blockquote className="border-l-2 border-primary/40 pl-5">
-                        <p className="text-[15px] italic leading-relaxed text-foreground">
+                        <p className="text-sm italic leading-relaxed text-foreground">
                             {"\""}Bitcoin-native payments for the actual work.{"\""}
                         </p>
                     </blockquote>
@@ -82,7 +83,7 @@ export const LoginPage = () => {
             </div>
 
             {/* Right panel -- form */}
-            <div className="col-2 flex flex-1 items-center justify-center px-6 py-12 lg:px-12 bg-slate-50">
+            <div className="lg:col-2 lg:col-span-4 flex flex-1 items-center justify-center px-6 py-12 lg:px-12 bg-slate-50 min-h-screen">
                 <div className="w-full max-w-lg lg:max-w-2xl">
                     {/* Mobile logo */}
                     <div className="mb-10 lg:hidden">
@@ -132,6 +133,21 @@ export const LoginPage = () => {
                             </div>
                         </CardContent>
                     </Card>
+
+                    <div className="mt-10 max-w-md lg:hidden text-center">
+                        <p className="font-mono text-[10px] font-medium tracking-[0.2em] text-foreground/40 uppercase">
+                            Business Dashboard
+                        </p>
+                        <h1 className="mt-4 font-serif text-sm leading-[1.1] tracking-[-0.02em] text-foreground">
+                            Your checkout.
+                            Your clients.
+                            <span className="text-primary ml-1">Your business.</span>
+                        </h1>
+                        <p className="mt-1 text-[11px] leading-relaxed text-foreground/50">
+                            Bitcoin-native payments for the actual work.
+
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
