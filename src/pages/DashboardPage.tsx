@@ -289,16 +289,7 @@ export const DashboardPage = () => {
     const revenuePayments = useMemo(() => {
         return paymentRequests
             .filter(p => p.settleTx !== undefined)
-            .reduce<{ date: string, amount: number }[]>((acc, p) => {
-                if (acc.length == 0) {
-                    acc.push({ date: p.createdAt.toISOString().split('T')[0], amount: p.amount })
-                }
-                else {
-                    const lastItem = acc[acc.length - 1]
-                    acc.push({ date: p.createdAt.toISOString().split('T')[0], amount: lastItem.amount + p.amount })
-                }
-                return acc
-            }, [])
+            .map((p) => ({ date: p.createdAt, amount: p.amount }))
     }, [paymentRequests])
 
     const revenue = useMemo(() => {
