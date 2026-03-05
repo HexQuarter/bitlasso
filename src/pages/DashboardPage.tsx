@@ -15,7 +15,7 @@ import type { Asset } from "@/components/app/send"
 import { send } from "@/lib/utils"
 import type { ReceiptMetadataData } from "@/components/app/receipt-metadata-form"
 import { Skeleton } from "@/components/ui/skeleton"
-import { BatteryWarning, Coins, ExternalLink, FileText, LucideMessageSquareWarning, MailWarning, MessageCircleWarning, MoreHorizontal, Pickaxe, RefreshCcw, Rocket, Wallet2, Zap } from "lucide-react"
+import { Coins, ExternalLink, FileText, LucideMessageSquareWarning, MoreHorizontal, Pickaxe, RefreshCcw, Rocket, Wallet2, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { RevenueChart } from "@/components/app/revenue-chart"
@@ -55,13 +55,71 @@ export const DashboardPage = () => {
         }
     }
 
+    const fetchData = async (wallet: Wallet) => {
+        const btcAddresses = await wallet.getBitcoinAddress()
+        const sparkAddress = await wallet.getSparkAddress()
+        const lnAddress = await wallet.getLightningAddress()
+        const addresses = {
+            btc: btcAddresses,
+            ln: lnAddress,
+            spark: sparkAddress
+        }
+
+        setAddresses(addresses)
+
+        await refreshPaymentRequests()
+        await refreshReceipts()
+
+        setTimeout(async () => {
+            const prices = await wallet.fetchPrices()
+            const p = prices.find(p => p.currency.toUpperCase() == currency.toUpperCase())
+            if (p) {
+                setPrice(p.value)
+            }
+        }, 0)
+
+        setTimeout(async () => {
+            try {
+                const metadata = await wallet.getTokenMetadata()
+                if (metadata) {
+                    setTokenMetadata(metadata)
+                    await refreshIssuanceStats(wallet, metadata)
+                }
+            }
+            catch (e: any) { }
+        })
+
+        setTimeout(async () => {
+            await updateBalance(wallet)
+
+            wallet.on('synced', async () => {
+                await updateBalance(wallet)
+
+                const payments = await wallet.listPayments()
+                setWalletHistory(payments)
+
+                if (tokenMetadata) {
+                    refreshIssuanceStats(wallet, tokenMetadata)
+                }
+            })
+        }, 0)
+
+        setInterval(async () => {
+            const prices = await wallet.fetchPrices()
+            const p = prices.find(p => p.currency.toUpperCase() == currency.toUpperCase())
+            if (p) {
+                setPrice(p.value)
+            }
+        }, 60_000)
+    }
+
     useEffect(() => {
         if (!wallet) return
-
         wallet.sparkStatus()
-            .then((status) => {
+            .then(async (status) => {
                 if (status.active) {
                     setErrorSpark(undefined)
+                    await fetchData(wallet)
 
                     wallet.on('paymentReceived', (payment) => {
                         if (payment.method != 'token') {
@@ -74,81 +132,31 @@ export const DashboardPage = () => {
                         }
                     })
 
-                    fetchData()
+                    setInitializing(false)
                 }
                 else {
                     setErrorSpark(status.status)
                 }
             })
-            .catch(() => {
+            .catch(async () => {
                 // Unknown status, unable to retrieve Spark status.
                 // We try with optimism the network is ok
                 setErrorSpark(undefined)
-                fetchData()
-            })
+                await fetchData(wallet)
 
-        const fetchData = async () => {
-            const btcAddresses = await wallet.getBitcoinAddress()
-            const sparkAddress = await wallet.getSparkAddress()
-            const lnAddress = await wallet.getLightningAddress()
-            const addresses = {
-                btc: btcAddresses,
-                ln: lnAddress,
-                spark: sparkAddress
-            }
-
-            setAddresses(addresses)
-
-            setTimeout(async () => {
-                const prices = await wallet.fetchPrices()
-                const p = prices.find(p => p.currency.toUpperCase() == currency.toUpperCase())
-                if (p) {
-                    setPrice(p.value)
-                }
-            }, 0)
-
-            setTimeout(async () => {
-                try {
-                    const metadata = await wallet.getTokenMetadata()
-                    if (metadata) {
-                        setTokenMetadata(metadata)
-                        await refreshIssuanceStats(wallet, metadata)
-                    }
-                }
-                catch (e: any) { }
-            })
-
-            setTimeout(async () => {
-                await updateBalance(wallet)
-
-                wallet.on('synced', async () => {
-                    await updateBalance(wallet)
-
-                    const payments = await wallet.listPayments()
-                    setWalletHistory(payments)
-
-                    if (tokenMetadata) {
-                        refreshIssuanceStats(wallet, tokenMetadata)
+                wallet.on('paymentReceived', (payment) => {
+                    if (payment.method != 'token') {
+                        toast.success(`Received payment of ${Number(payment.amount) / 100_000_000} BTC`)
                     }
                 })
-            }, 0)
+                wallet.on('paymentPending', (payment) => {
+                    if (payment.paymentType == 'receive') {
+                        toast.info(`Payment incoming. Waiting for confirmation...`)
+                    }
+                })
 
-            setTimeout(async () => {
-                await refreshPaymentRequests()
-                await refreshReceipts()
-            }, 0)
-
-            setInterval(async () => {
-                const prices = await wallet.fetchPrices()
-                const p = prices.find(p => p.currency.toUpperCase() == currency.toUpperCase())
-                if (p) {
-                    setPrice(p.value)
-                }
-            }, 60_000)
-
-            setTimeout(() => setInitializing(false), 500)
-        }
-
+                setInitializing(false)
+            })
     }, [wallet])
 
     const refreshPaymentRequests = async () => {
@@ -158,25 +166,31 @@ export const DashboardPage = () => {
             const last = paymentRequests.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).at(0)
             if (last) {
                 localStorage.setItem("BITLASSO_PAYMENT_NONCE", last.nonce.toString())
+                setTimeout(async () => {
+                    let claimPromises = []
+                    const mainAddress = await wallet.getSparkAddress()
+                    for (let i = 2; i <= last.nonce; i++) {
+                        claimPromises.push(new Promise(async () => {
+                            const requestSdk = await wallet.withAccountNumber(i)
+                            const unclaimedBitcoinDepostis = await requestSdk.listUnclaimDeposits()
+                            await Promise.all(unclaimedBitcoinDepostis.map(async (d) => {
+                                return requestSdk.claimDeposit(d.txid, d.vout)
+                            }))
+
+                            let balance = await requestSdk.getBalance()
+                            let satsBalance = Number(balance.balance)
+                            if (satsBalance > 0) {
+                                console.log('claimable', i, satsBalance / 100_000_000)
+                                return requestSdk.sendSparkPayment(mainAddress, satsBalance)
+                            }
+                        }))
+                    }
+
+                    await Promise.all(claimPromises)
+                }, 100)
             }
         }
-
-        const claimableRequests = await Promise.all(paymentRequests.map(async (r) => {
-            const requestSdk = await wallet.withAccountNumber(r.nonce)
-
-            const unclaimedBitcoinDepostis = await requestSdk.listUnclaimDeposits()
-            await Promise.all(unclaimedBitcoinDepostis.map(async (d) => {
-                await requestSdk.claimDeposit(d.txid, d.vout)
-            }))
-
-            let balance = await requestSdk.getBalance()
-            let satsBalance = Number(balance.balance)
-
-            r.claimable = satsBalance / 100_000_000
-            return r
-        }))
-
-        setPaymentRequests(claimableRequests)
+        setPaymentRequests(paymentRequests)
     }
 
     const refreshReceipts = async () => {
@@ -328,7 +342,7 @@ export const DashboardPage = () => {
                 <h1 className="text-4xl font-serif font-normal text-foreground flex items-center">Dashboard {initializing && <Spinner className="ml-2 text-primary" />}</h1>
                 <h2 className="text-1xl font-light text-muted-foreground">Turn paid work into Bitcoin-anchored receipts that reward repeat clients.</h2>
             </div>
-            {initializing && tokenMetadata &&
+            {initializing &&
                 <div className="grid lg:grid-cols-3 gap-2">
                     <Card className="col-span-1">
                         <CardHeader className="font-mono uppercase tracking-wider text-gray-500 text-xs flex justify-between items-center">
@@ -583,45 +597,43 @@ export const DashboardPage = () => {
                         }
                     </CardContent>
                 </Card>
-                {tokenMetadata &&
-                    <Card className="lg:col-span-1" id="receipts">
-                        <CardHeader className="flex flex-col">
-                            <CardTitle className="flex 2xl:flex-row flex-col justify-between w-full gap-10">
-                                <div className="flex flex-col lg:flex-row justify-between lg:w-full gap-5">
-                                    <p className="text-2xl font-serif text-2xl font-light ">Receipts</p>
-                                    <CardAction >
-                                        {initializing && <Skeleton className="h-10 w-30" />}
-                                        {!initializing && <IssueReceiptForm onSubmit={handleIssueReceipt} paymentRequests={paymentRequests} />}
-                                    </CardAction>
-                                </div>
-                            </CardTitle>
-                            <CardDescription>Receipts issued for completed and paid work</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {initializing &&
-                                <div className="flex flex-col gap-2">
-                                    {Array.from({ length: 5 }).map((_, index) => (
-                                        <div className="flex gap-4" key={index}>
-                                            <Skeleton className="h-10 flex-1" />
-                                            <Skeleton className="h-10 flex-1" />
-                                            <Skeleton className="h-10 flex-1" />
-                                            <Skeleton className="h-10 flex-1" />
-                                        </div>
-                                    ))}
-                                </div>
-                            }
-                            <div className="md:max-w-full max-w-xs">
-                                {!initializing &&
-                                    <ReceiptTable
-                                        network={wallet?.getNetwork() as string}
-                                        receipts={receipts}
-                                        paymentRequests={paymentRequests}
-                                        onMetadataChange={handleReceiptMetadataChange} />
-                                }
+                <Card className="lg:col-span-1" id="receipts">
+                    <CardHeader className="flex flex-col">
+                        <CardTitle className="flex 2xl:flex-row flex-col justify-between w-full gap-10">
+                            <div className="flex flex-col lg:flex-row justify-between lg:w-full gap-5">
+                                <p className="text-2xl font-serif text-2xl font-light ">Receipts</p>
+                                <CardAction >
+                                    {initializing && <Skeleton className="h-10 w-30" />}
+                                    {!initializing && <IssueReceiptForm onSubmit={handleIssueReceipt} paymentRequests={paymentRequests} />}
+                                </CardAction>
                             </div>
-                        </CardContent>
-                    </Card>
-                }
+                        </CardTitle>
+                        <CardDescription>Receipts issued for completed and paid work</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {initializing &&
+                            <div className="flex flex-col gap-2">
+                                {Array.from({ length: 5 }).map((_, index) => (
+                                    <div className="flex gap-4" key={index}>
+                                        <Skeleton className="h-10 flex-1" />
+                                        <Skeleton className="h-10 flex-1" />
+                                        <Skeleton className="h-10 flex-1" />
+                                        <Skeleton className="h-10 flex-1" />
+                                    </div>
+                                ))}
+                            </div>
+                        }
+                        <div className="md:max-w-full max-w-xs">
+                            {!initializing &&
+                                <ReceiptTable
+                                    network={wallet?.getNetwork() as string}
+                                    receipts={receipts}
+                                    paymentRequests={paymentRequests}
+                                    onMetadataChange={handleReceiptMetadataChange} />
+                            }
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
         </div>
     )

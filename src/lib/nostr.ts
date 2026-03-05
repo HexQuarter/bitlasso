@@ -355,12 +355,12 @@ async function isRelayReachable(url: string, timeoutMs = 3000): Promise<boolean>
 
             ws.onopen = () => {
                 ws.close();
-                timer.close()
+                clearTimeout(timer)
                 resolve(true);
             };
 
             ws.onerror = () => {
-                timer.close()
+                clearTimeout(timer)
                 resolve(false);
             };
         } catch {
