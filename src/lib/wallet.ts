@@ -7,8 +7,7 @@ import init, {
     type Payment,
     type PrepareSendPaymentResponse,
     type PrepareLnurlPayResponse,
-    SdkBuilder,
-    getSparkStatus,
+    SdkBuilder
 } from "@breeztech/breez-sdk-spark/web";
 import { Network, SparkWallet } from "@buildonspark/spark-sdk";
 import { getNostrKeyPair, type NostrKeyPair } from "./nostr";
@@ -73,7 +72,6 @@ interface _SparkWallet {
     listUnclaimDeposits(): Promise<Deposit[]>
     claimDeposit(txId: string, vout: number): Promise<void>
     validAddress(string: string, method?: 'spark' | 'lightning' | 'bitcoin'): Promise<boolean>
-    sparkStatus(): Promise<{ active: boolean, status: string }>
 }
 
 interface NostrWallet {
@@ -686,11 +684,6 @@ export class BreezSparkWallet extends TypedEventEmitter<SparkEvent> implements W
             default:
                 return false
         }
-    }
-
-    async sparkStatus(): Promise<{ active: boolean, status: string }> {
-        const sparkStatus = await getSparkStatus()
-        return { active: sparkStatus.status == 'operational' || sparkStatus.status == 'degraded', status: sparkStatus.status }
     }
 
     getNostrPublicKey(): string {

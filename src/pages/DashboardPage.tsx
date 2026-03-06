@@ -21,6 +21,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { RevenueChart } from "@/components/app/revenue-chart"
 import { fetchPaymentsRequest, listReceipts, publishPaymentRequest, publishReceiptMetadata, removePaymentRequest } from "@/lib/nostr"
 import { Spinner } from "@/components/ui/spinner"
+import { getStatus } from "@/lib/api"
 
 export const DashboardPage = () => {
     const { wallet } = useWallet()
@@ -115,9 +116,9 @@ export const DashboardPage = () => {
 
     useEffect(() => {
         if (!wallet) return
-        wallet.sparkStatus()
-            .then(async (status) => {
-                if (status.active) {
+        getStatus()
+            .then(async ({ sparkStatus }) => {
+                if (sparkStatus == 'operational') {
                     setErrorSpark(undefined)
                     await fetchData(wallet)
 
@@ -135,7 +136,7 @@ export const DashboardPage = () => {
                     setInitializing(false)
                 }
                 else {
-                    setErrorSpark(status.status)
+                    setErrorSpark(`Spark status is not operational`)
                 }
             })
             .catch(async () => {

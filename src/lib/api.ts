@@ -23,3 +23,12 @@ export const getPaymentPrice = async (paymentRequestId: string): Promise<{ btc: 
     const { btc, endtime } = await response.json()
     return { btc, endtime }
 }
+
+export const getStatus = async (): Promise<{ sparkStatus: string }> => {
+ const response = await fetch(getApiUrl(`/status`))
+    if (!response.ok) {
+        throw new Error("Not able to fetch status")
+    }
+
+    return await response.json()
+}
