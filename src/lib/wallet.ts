@@ -13,6 +13,7 @@ import { Network, SparkWallet } from "@buildonspark/spark-sdk";
 import { getNostrKeyPair, type NostrKeyPair } from "./nostr";
 import { finalizeEvent, type EventTemplate, type VerifiedEvent } from "nostr-tools";
 import { bytesToHex, hexToBytes } from "nostr-tools/utils";
+import { toast } from "sonner";
 
 const BURN_PUBLIC_KEY =
     "020202020202020202020202020202020202020202020202020202020202020202";
@@ -243,6 +244,17 @@ export class BreezSparkWallet extends TypedEventEmitter<SparkEvent> implements W
         }
 
         instance.nostrKeypair = getNostrKeyPair(mnemonic)
+
+        instance.on('paymentReceived', (payment) => {
+            if (payment.method != 'token') {
+                toast.success(`Received payment of ${Number(payment.amount) / 100_000_000} BTC`)
+            }
+        })
+        instance.on('paymentPending', (payment) => {
+            if (payment.paymentType == 'receive') {
+                toast.info(`Payment incoming. Waiting for confirmation...`)
+            }
+        })
 
         return instance;
     }

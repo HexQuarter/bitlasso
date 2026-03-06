@@ -56,6 +56,30 @@ export const DashboardPage = () => {
         }
     }
 
+    const claimPaymentRequestBalances = async (sparkAddress: string) => {
+        if (!wallet) return
+        let claimPromises = []
+        const lastNonce = Number(localStorage.getItem('BITLASSO_PAYMENT_NONCE') || '0')
+        for (let i = 2; i <= lastNonce; i++) {
+            claimPromises.push(new Promise(async () => {
+                const requestSdk = await wallet.withAccountNumber(i)
+                const unclaimedBitcoinDepostis = await requestSdk.listUnclaimDeposits()
+                await Promise.all(unclaimedBitcoinDepostis.map(async (d) => {
+                    return requestSdk.claimDeposit(d.txid, d.vout)
+                }))
+
+                let balance = await requestSdk.getBalance()
+                let satsBalance = Number(balance.balance)
+                if (satsBalance > 0) {
+                    console.log('claiming from sub account', i, satsBalance / 100_000_000)
+                    return requestSdk.sendSparkPayment(sparkAddress, satsBalance)
+                }
+            }))
+        }
+
+        await Promise.all(claimPromises)
+    }
+
     const fetchData = async (wallet: Wallet) => {
         const btcAddresses = await wallet.getBitcoinAddress()
         const sparkAddress = await wallet.getSparkAddress()
@@ -70,6 +94,8 @@ export const DashboardPage = () => {
 
         await refreshPaymentRequests()
         await refreshReceipts()
+
+        setTimeout(() => claimPaymentRequestBalances(sparkAddress), 0)
 
         setTimeout(async () => {
             const prices = await wallet.fetchPrices()
@@ -122,21 +148,10 @@ export const DashboardPage = () => {
                     setErrorSpark(undefined)
                     await fetchData(wallet)
 
-                    wallet.on('paymentReceived', (payment) => {
-                        if (payment.method != 'token') {
-                            toast.success(`Received payment of ${Number(payment.amount) / 100_000_000} BTC`)
-                        }
-                    })
-                    wallet.on('paymentPending', (payment) => {
-                        if (payment.paymentType == 'receive') {
-                            toast.info(`Payment incoming. Waiting for confirmation...`)
-                        }
-                    })
-
                     setInitializing(false)
                 }
                 else {
-                    setErrorSpark(`Spark status is not operational`)
+                    setErrorSpark(`Spark status is not operational. Please retry in few moments. We are sorry for this inconvenience.`)
                 }
             })
             .catch(async () => {
@@ -144,17 +159,6 @@ export const DashboardPage = () => {
                 // We try with optimism the network is ok
                 setErrorSpark(undefined)
                 await fetchData(wallet)
-
-                wallet.on('paymentReceived', (payment) => {
-                    if (payment.method != 'token') {
-                        toast.success(`Received payment of ${Number(payment.amount) / 100_000_000} BTC`)
-                    }
-                })
-                wallet.on('paymentPending', (payment) => {
-                    if (payment.paymentType == 'receive') {
-                        toast.info(`Payment incoming. Waiting for confirmation...`)
-                    }
-                })
 
                 setInitializing(false)
             })
@@ -167,28 +171,6 @@ export const DashboardPage = () => {
             const last = paymentRequests.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).at(0)
             if (last) {
                 localStorage.setItem("BITLASSO_PAYMENT_NONCE", last.nonce.toString())
-                setTimeout(async () => {
-                    let claimPromises = []
-                    const mainAddress = await wallet.getSparkAddress()
-                    for (let i = 2; i <= last.nonce; i++) {
-                        claimPromises.push(new Promise(async () => {
-                            const requestSdk = await wallet.withAccountNumber(i)
-                            const unclaimedBitcoinDepostis = await requestSdk.listUnclaimDeposits()
-                            await Promise.all(unclaimedBitcoinDepostis.map(async (d) => {
-                                return requestSdk.claimDeposit(d.txid, d.vout)
-                            }))
-
-                            let balance = await requestSdk.getBalance()
-                            let satsBalance = Number(balance.balance)
-                            if (satsBalance > 0) {
-                                console.log('claimable', i, satsBalance / 100_000_000)
-                                return requestSdk.sendSparkPayment(mainAddress, satsBalance)
-                            }
-                        }))
-                    }
-
-                    await Promise.all(claimPromises)
-                }, 100)
             }
         }
         setPaymentRequests(paymentRequests)
