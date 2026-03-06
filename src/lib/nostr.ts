@@ -1,5 +1,5 @@
 import type { NotificationSettings } from "@/components/app/notification-setting";
-import { SimplePool, getPublicKey, type Filter, type NostrEvent } from "nostr-tools"
+import { SimplePool, getPublicKey } from "nostr-tools"
 
 import { HDKey } from "@scure/bip32";
 import { bech32 } from "bech32";
@@ -9,7 +9,10 @@ import type { Wallet } from "./wallet";
 import type { Payment } from "@/components/app/payment-table";
 import type { Receipt } from "@/components/app/receipt-table";
 
-const pool = new SimplePool();
+const pool = new SimplePool({
+    enablePing: true,
+    enableReconnect: true
+});
 const RELAYS = [
     "wss://relay.damus.io",
     "wss://relay.primal.net",
@@ -62,11 +65,11 @@ export const registerNotifSettings = async (wallet: Wallet, notifSettings: Notif
     }
 
     const signedEvent = wallet.signNostrEvent(event);
-    await resilientPublish(signedEvent, RELAYS)
+    await pool.publish(RELAYS, signedEvent)
 }
 
 export const getNotifSettings = async (wallet: Wallet): Promise<NotificationSettings | undefined> => {
-    const events = await resilientQuery(RELAYS, {
+    const events = await pool.querySync(RELAYS, {
         kinds: [EventKind.SETTING],
         authors: [wallet.getNostrPublicKey()],
         "#n": ["0"] // link to notification settings
@@ -96,7 +99,7 @@ export const publishPaymentRequest = async (wallet: Wallet, nonce: number, amoun
     }
 
     const signedEvent = wallet.signNostrEvent(event);
-    await resilientPublish(signedEvent, RELAYS)
+    await pool.publish(RELAYS, signedEvent)
     return {
         id: signedEvent.id,
         createdAt: signedEvent.created_at
@@ -114,11 +117,11 @@ export const removePaymentRequest = async (wallet: Wallet, id: string) => {
         ]
     }
     const signedEvent = wallet.signNostrEvent(event)
-    await resilientPublish(signedEvent, RELAYS)
+    await pool.publish(RELAYS, signedEvent)
 }
 
 export const fetchPaymentsRequest = async (wallet: Wallet): Promise<Payment[]> => {
-    const events = await resilientQuery(RELAYS, {
+    const events = await pool.querySync(RELAYS, {
         kinds: [EventKind.PAYMENT_REQ],
         authors: [wallet.getNostrPublicKey()]
     });
@@ -147,6 +150,9 @@ export const fetchPaymentsRequest = async (wallet: Wallet): Promise<Payment[]> =
                 paymentRequest.settlementMode = settlementMode
             }
         }
+        catch (e) {
+            console.log(e)
+        }
         finally {
             return paymentRequest
         }
@@ -154,7 +160,7 @@ export const fetchPaymentsRequest = async (wallet: Wallet): Promise<Payment[]> =
 }
 
 export const fetchPaymentRequest = async (id: string): Promise<PaymentRequest> => {
-    const events = await resilientQuery(RELAYS, {
+    const events = await pool.querySync(RELAYS, {
         kinds: [EventKind.PAYMENT_REQ],
         ids: [id]
     });
@@ -196,7 +202,7 @@ export const fetchPaymentRequest = async (id: string): Promise<PaymentRequest> =
 }
 
 const fetchPaymentDetails = async (requestId: string) => {
-    const events = await resilientQuery(RELAYS, {
+    const events = await pool.querySync(RELAYS, {
         kinds: [EventKind.BTC_PAYMENT],
         authors: [import.meta.env.VITE_API_NOSTR_PUB],
         "#e": [requestId]
@@ -214,7 +220,7 @@ const fetchPaymentDetails = async (requestId: string) => {
 }
 
 const fetchRedeemDetails = async (requestId: string) => {
-    const events = await resilientQuery(RELAYS, {
+    const events = await pool.querySync(RELAYS, {
         kinds: [EventKind.SPARK_REDEEM],
         authors: [import.meta.env.VITE_API_NOSTR_PUB],
         "#e": [requestId]
@@ -267,11 +273,11 @@ export const publishReceiptMetadata = async (wallet: Wallet, transactionId: stri
     }
 
     const signedEvent = wallet.signNostrEvent(event);
-    await resilientPublish(signedEvent, RELAYS)
+    await pool.publish(RELAYS, signedEvent)
 }
 
 export const listReceipts = async (wallet: Wallet): Promise<Receipt[]> => {
-    const events = await resilientQuery(RELAYS, {
+    const events = await pool.querySync(RELAYS, {
         kinds: [EventKind.RECEIPT],
         authors: [wallet.getNostrPublicKey()]
     });
@@ -300,7 +306,7 @@ export const getBitcoinPrice = async (id: string): Promise<{ usdPrice: number, d
     if (!payment) return undefined
 
     console.log(payment)
-    const events = await resilientQuery(RELAYS, {
+    const events = await pool.querySync(RELAYS, {
         ids: [payment.refPriceId]
     });
     if (events.length == 0) {
@@ -309,76 +315,4 @@ export const getBitcoinPrice = async (id: string): Promise<{ usdPrice: number, d
 
     const { usdPrice } = JSON.parse(events[0].content)
     return { usdPrice, date: new Date(events[0].created_at * 1000) }
-}
-
-async function resilientPublish(signedEvent: NostrEvent, relays = RELAYS) {
-    const reachable = await getReachableRelays(relays);
-    if (reachable.length === 0) throw new Error("No relays reachable.");
-
-    const results = await Promise.allSettled(pool.publish(reachable, signedEvent));
-
-    const succeeded = reachable.filter((_, i) => results[i].status === "fulfilled");
-    const failed = reachable.filter((_, i) => results[i].status === "rejected");
-
-    failed.forEach(r => console.warn(`[nostr] Relay rejected publish: ${r}`));
-
-    if (succeeded.length === 0) {
-        throw new Error("Failed to publish to any relay.");
-    }
-
-    return { succeeded, failed };
-}
-
-async function resilientQuery(relays: string[], filter: Filter) {
-    const reachable = await getReachableRelays(relays);
-    if (reachable.length === 0) throw new Error("No relays reachable.");
-
-    const results = await Promise.allSettled(
-        reachable.map(relay => pool.querySync([relay], filter))
-    );
-
-    // Merge and deduplicate events from all relays
-    const seen = new Set<string>();
-    return (results.filter(r => r.status === "fulfilled") as PromiseFulfilledResult<NostrEvent[]>[])
-        .flatMap(r => r.value)
-        .filter(e => !seen.has(e.id) && seen.add(e.id));
-}
-
-async function isRelayReachable(url: string, timeoutMs = 3000): Promise<boolean> {
-    return new Promise(resolve => {
-        try {
-            const ws = new WebSocket(url);
-            const timer = setTimeout(() => {
-                ws.close();
-                resolve(false);
-            }, timeoutMs);
-
-            ws.onopen = () => {
-                ws.close();
-                clearTimeout(timer)
-                resolve(true);
-            };
-
-            ws.onerror = () => {
-                clearTimeout(timer)
-                resolve(false);
-            };
-        } catch {
-            resolve(false);
-        }
-    });
-}
-
-async function getReachableRelays(relays = RELAYS): Promise<string[]> {
-    const results = await Promise.allSettled(
-        relays.map(async relay => {
-            const reachable = await isRelayReachable(relay);
-            if (!reachable) throw new Error(`Unreachable: ${relay}`);
-            return relay;
-        })
-    );
-
-    return results
-        .filter(r => r.status === "fulfilled")
-        .map(r => (r as PromiseFulfilledResult<string>).value);
 }
