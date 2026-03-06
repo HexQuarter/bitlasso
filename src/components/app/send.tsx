@@ -141,16 +141,16 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
                 return
             }
             try {
-                const validAddress = await wallet.validAddress(r, method)
-                if (!validAddress) {
-                    if (method != 'lightning') {
-                        setRecipientError('Invalid recipient address')
-                    }
-                    else {
-                        setRecipientError('Invalid recipient invoice/address')
-                    }
-                    return
-                }
+                // const validAddress = await wallet.validAddress(r, method)
+                // if (!validAddress) {
+                //     if (method != 'lightning') {
+                //         setRecipientError('Invalid recipient address')
+                //     }
+                //     else {
+                //         setRecipientError('Invalid recipient invoice/address')
+                //     }
+                //     return
+                // }
                 setRecipient(r)
             }
             catch (e) {

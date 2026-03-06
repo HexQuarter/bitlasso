@@ -58,7 +58,7 @@ export const WalletCard: React.FC<Props> = ({ btcBalance, tokens, addresses, pri
 
     const history = useMemo(() => {
         return payments
-            .filter(p => p.status == 'completed' && p.method != 'token')
+            // .filter(p => p.status == 'completed' && p.method != 'token')
             .sort((a, b) => a.timestamp - b.timestamp)
             .reduce<{ date: string, sats: number, amount: number }[]>((acc, p) => {
                 if (acc.length == 0) {
@@ -70,7 +70,7 @@ export const WalletCard: React.FC<Props> = ({ btcBalance, tokens, addresses, pri
                 }
                 else {
                     const lastItem = acc[acc.length - 1]
-                    const sats = p.paymentType == 'receive' ? lastItem.sats + Number(p.amount) : lastItem.sats - Number(p.amount)
+                    const sats = p.direction == 'INCOMING' ? lastItem.sats + Number(p.amount) : lastItem.sats - Number(p.amount)
                     acc.push({
                         date: new Date(p.timestamp * 1000).toISOString().split('T')[0],
                         sats: sats,

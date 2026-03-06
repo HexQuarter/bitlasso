@@ -1,5 +1,4 @@
-import { BreezSparkWallet, type Wallet } from '@/lib/wallet';
-import { Network } from '@buildonspark/spark-sdk';
+import { BareSparkWallet, type Wallet } from '@/lib/wallet';
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
@@ -25,10 +24,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const loadWallet = async () => {
         const mnemonic = localStorage.getItem('BITLASSO_MNEMONIC')
         if (mnemonic) {
-            const wallet = await BreezSparkWallet.initialize(
-                mnemonic,
-                import.meta.env.VITE_BREEZ_API_KEY || '',
-                Network.MAINNET
+            const wallet = await BareSparkWallet.initialize(
+                mnemonic
             );
 
             setWallet(wallet);

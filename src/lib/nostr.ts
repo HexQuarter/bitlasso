@@ -69,9 +69,13 @@ export const registerNotifSettings = async (wallet: Wallet, notifSettings: Notif
 }
 
 export const getNotifSettings = async (wallet: Wallet): Promise<NotificationSettings | undefined> => {
+    return await getNotifSettingsByPublicKey(wallet.getNostrPublicKey())
+}
+
+export const getNotifSettingsByPublicKey = async (publicKey: string): Promise<NotificationSettings | undefined> => {
     const events = await pool.querySync(RELAYS, {
         kinds: [EventKind.SETTING],
-        authors: [wallet.getNostrPublicKey()],
+        authors: [publicKey],
         "#n": ["0"] // link to notification settings
     });
     if (events.length > 0) {

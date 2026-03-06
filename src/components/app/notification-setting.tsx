@@ -23,7 +23,7 @@ export const NotificationSettingsForm: React.FC<Props> = ({ onEmailChange, onNPu
                     <br />We’ll send you updates, such as when your payment is processed.
                 </p>
             </div>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-">
                 <div className="flex flex-col gap-3">
                     <Label htmlFor="email" className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                         Email

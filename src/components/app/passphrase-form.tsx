@@ -7,10 +7,9 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { NotificationSettingsForm, type NotificationSettings } from "./notification-setting";
 
 type Props = {
-    onSubmit: (mnemonic: string, noticiationSettings: NotificationSettings) => void
+    onSubmit: (mnemonic: string) => void
     loading: boolean
     onBack: () => void
 }
@@ -19,8 +18,6 @@ export const PassphraseForm: React.FC<Props> = ({ onSubmit, onBack, loading = fa
     const [mnemonic, setMnemonic] = useState<string[]>(["", "", "", "", "", "", "", "", "", "", "", ""]);
     const [error, setError] = useState<string | null>(null);
     const [valid, setValid] = useState<boolean>(false);
-    const [email, setEmail] = useState<undefined | string>(undefined)
-    const [npub, setNpub] = useState<undefined | string>(undefined)
 
     useEffect(() => {
         const handlePaste = (e: ClipboardEvent) => {
@@ -79,11 +76,15 @@ export const PassphraseForm: React.FC<Props> = ({ onSubmit, onBack, loading = fa
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSubmit(mnemonic.join(' '), { email, npub })
+        onSubmit(mnemonic.join(' '))
     }
 
     return (
-        <form className="bg-white" onSubmit={handleSubmit}>
+        <form className="bg-white flex flex-col gap-5 p-10 " onSubmit={handleSubmit}>
+            <div className="flex flex-col items-center gap-10">
+                <h1 className="w-full font-serif text-4xl font-normal text-foreground">Connect your <span className="text-primary">wallet.</span></h1>
+                <p className="text-muted-foreground">Sign in with a Spark-compatible Bitcoin wallet to issue work receipts and manage loyalty.</p>
+            </div>
             <FieldGroup>
                 <FieldLabel>Enter your passphrase</FieldLabel>
                 <div className="grid grid-cols-3 gap-4 text-center">
@@ -100,18 +101,11 @@ export const PassphraseForm: React.FC<Props> = ({ onSubmit, onBack, loading = fa
                         </Field>
                     ))}
                 </div>
-                {valid && <div className="mt-4">
-                    <NotificationSettingsForm
-                        onEmailChange={setEmail}
-                        onNPubChange={setNpub}
-                        email={email}
-                        npub={npub} />
-                </div>}
                 <div className="flex flex-col lg:flex-row gap-2">
-                    <Button variant='outline' className='flex-1 w-full' onClick={() => onBack()}>Back</Button>
-                    {error && <p className="col-span-3 text-red-500 text-sm italic mt-2">{error}</p>}
+                    <Button className='flex-1 w-full' variant='outline' onClick={() => onBack()}>Back</Button>
                     {valid && <Button type="submit" className='flex-1 w-full' disabled={loading}>{loading && <Spinner />} Join{loading && 'ing'} your workspace</Button>}
                 </div>
+                {error && <p className="text-red-500 text-sm italic mt-2 text-center">{error}</p>}
             </FieldGroup>
         </form>
     )

@@ -4,6 +4,7 @@ import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { Wallet } from "./wallet";
 import { toast } from "sonner";
+import type { Bech32mTokenIdentifier } from "@buildonspark/spark-sdk";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -27,20 +28,7 @@ export function sparkBech32ToHex(bech32Id: string) {
 export const send = (wallet: Wallet, asset: Asset, amount: number, recipient: string, method: "spark" | "lightning" | "bitcoin") => {
   return new Promise<void>(async (resolve, reject) => {
     try {
-
       toast.info(`Sending ${amount} ${asset.symbol} to ${shortenAddress(recipient)}.`)
-
-      wallet.on('paymentSent', async () => {
-        toast.success(`Sent ${amount} ${asset.symbol} to ${shortenAddress(recipient)}.`)
-        resolve()
-      })
-      wallet.on('paymentPending', () => {
-        toast.info(`Payment pending`)
-      })
-      wallet.on('paymentFailed', () => {
-        toast.error(`Failed to send ${amount} ${asset.symbol} to ${shortenAddress(recipient)}.`)
-        reject()
-      })
 
       const satsAmount = Math.floor(amount * 100_000_000)
       switch (method) {
@@ -50,10 +38,11 @@ export const send = (wallet: Wallet, asset: Asset, amount: number, recipient: st
             console.log('Spark payment sent with tx ID:', txId)
           }
           else if (asset.identifier) {
-            const tokenMetadata = await wallet.getTokenMetadata(asset.identifier)
+            const tokenMetadata = await wallet.getTokenMetadata(asset.identifier as Bech32mTokenIdentifier)
             if (tokenMetadata) {
               const tokenAmount = BigInt(amount * (10 ** tokenMetadata.decimals))
-              await wallet.sendTokenTransfer(asset.identifier, tokenAmount, recipient)
+              await wallet.sendTokenTransfer(asset.identifier as Bech32mTokenIdentifier, tokenAmount, recipient)
+              resolve()
             }
             else {
               toast.error(`Failed to send ${asset.name} tokens. Cannot find metadata`)
@@ -63,9 +52,11 @@ export const send = (wallet: Wallet, asset: Asset, amount: number, recipient: st
           break;
         case 'lightning':
           await wallet.sendLightningPayment(recipient, satsAmount)
+          resolve()
           break;
         case 'bitcoin':
           await wallet.sendOnChainPayment(recipient, satsAmount)
+          resolve()
           break;
       }
     } catch (e) {
@@ -76,3 +67,10 @@ export const send = (wallet: Wallet, asset: Asset, amount: number, recipient: st
     }
   })
 }
+
+export function toBaseUnits(amount: string, decimals: number): bigint {
+  const [whole, fraction = ""] = amount.split(".");
+  const fractionPadded = (fraction + "0".repeat(decimals)).slice(0, decimals);
+  return BigInt(whole || "0") * 10n ** BigInt(decimals) + BigInt(fractionPadded || "0");
+}
+

@@ -6,8 +6,6 @@ import { ExternalLink, MoreHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ReceiptMetadataForm, type ReceiptMetadataData } from "./receipt-metadata-form"
-// import { shortenAddress } from "@/lib/utils"
-// import { toast } from "sonner"
 import type { Payment } from "./payment-table"
 
 export type Receipt = {
@@ -19,7 +17,7 @@ export type Receipt = {
     paymentId?: string
 }
 
-const getColumns = (openMetadataModalFn: (metadata: ReceiptMetadataData) => void, network: string, paymentRequests: Payment[]) => {
+const getColumns = (openMetadataModalFn: (metadata: ReceiptMetadataData) => void, paymentRequests: Payment[]) => {
     return [
         {
             accessorKey: "date",
@@ -110,7 +108,7 @@ const getColumns = (openMetadataModalFn: (metadata: ReceiptMetadataData) => void
                             <DropdownMenuItem onClick={() => openMetadataModalFn(metadata)}>
                                 Edit metadata
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => window.open(`https://sparkscan.io/tx/${tx}?network=${network}`, '_blank')}>
+                            <DropdownMenuItem onClick={() => window.open(`https://sparkscan.io/tx/${tx}`, '_blank')}>
                                 Open issuance transaction <ExternalLink />
                             </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -121,7 +119,7 @@ const getColumns = (openMetadataModalFn: (metadata: ReceiptMetadataData) => void
     ] as ColumnDef<Receipt>[]
 }
 
-export const ReceiptTable: React.FC<{ network: string, receipts: Receipt[], paymentRequests: Payment[], onMetadataChange: (modalData: ReceiptMetadataData) => Promise<void> }> = ({ receipts, network, paymentRequests, onMetadataChange }) => {
+export const ReceiptTable: React.FC<{ receipts: Receipt[], paymentRequests: Payment[], onMetadataChange: (modalData: ReceiptMetadataData) => Promise<void> }> = ({ receipts, paymentRequests, onMetadataChange }) => {
 
     const [openMetadataModal, setOpenMetadataModel] = useState(false)
     const [metadata, setMetadata] = useState<ReceiptMetadataData>({ transactionId: '', description: '', recipientName: '', recipientAddress: undefined, paymentId: undefined })
@@ -133,7 +131,7 @@ export const ReceiptTable: React.FC<{ network: string, receipts: Receipt[], paym
 
     return (
         <div>
-            <DataTable columns={getColumns(showMetadataModal, network, paymentRequests)} data={receipts} />
+            <DataTable columns={getColumns(showMetadataModal, paymentRequests)} data={receipts} />
             {openMetadataModal && <ReceiptMetadataForm onSubmit={onMetadataChange} metadata={metadata} onClose={() => setOpenMetadataModel(false)} paymentRequests={paymentRequests} />}
         </div>
     )

@@ -15,16 +15,22 @@ import type { Asset } from "@/components/app/send"
 import { send } from "@/lib/utils"
 import type { ReceiptMetadataData } from "@/components/app/receipt-metadata-form"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Coins, ExternalLink, FileText, LucideMessageSquareWarning, MoreHorizontal, Pickaxe, RefreshCcw, Rocket, Wallet2, Zap } from "lucide-react"
+import { AlertTriangle, AlertTriangleIcon, Coins, ExternalLink, FileText, MoreHorizontal, Pickaxe, RefreshCcw, Rocket, Wallet2, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { RevenueChart } from "@/components/app/revenue-chart"
-import { fetchPaymentsRequest, listReceipts, publishPaymentRequest, publishReceiptMetadata, removePaymentRequest } from "@/lib/nostr"
+import { fetchPaymentsRequest, getNotifSettings, listReceipts, publishPaymentRequest, publishReceiptMetadata, removePaymentRequest } from "@/lib/nostr"
 import { Spinner } from "@/components/ui/spinner"
 import { getStatus } from "@/lib/api"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useNavigate } from "react-router"
+import { IconMessageDollar } from "@tabler/icons-react"
 
 export const DashboardPage = () => {
     const { wallet } = useWallet()
+    const navigate = useNavigate()
+
+    const hasSecuredMnemonic = localStorage.getItem('BITLASSO_SECURED_MNEMONIC') || 'false'
 
     const [initializing, setInitializing] = useState(true)
     const [btcBalance, setBtcBalance] = useState(0n)
@@ -32,11 +38,12 @@ export const DashboardPage = () => {
     const [issuanceStats, setIssuanceStats] = useState<TokenStats | undefined>(undefined)
     const [tokenMetadata, setTokenMetadata] = useState<TokenMetadata | undefined>(undefined)
     const [addresses, setAddresses] = useState<{ btc: string, ln: string, spark: string } | null>(null)
-    const [price, setPrice] = useState(0)
+    const [price, _setPrice] = useState(0)
     const [paymentRequests, setPaymentRequests] = useState<Payment[]>([])
     const [receipts, setReceipts] = useState<Receipt[]>([])
     const [walletHistory, setWalletHistory] = useState<SparkPayment[]>([])
     const [errorSpark, setErrorSpark] = useState<string | undefined>(undefined)
+    const [notifSettingAlert, setNotifSettingAlert] = useState(false)
 
     const currency = localStorage.getItem('BITLASSO_CURRENCY') || 'USD'
 
@@ -61,29 +68,38 @@ export const DashboardPage = () => {
         let claimPromises = []
         const lastNonce = Number(localStorage.getItem('BITLASSO_PAYMENT_NONCE') || '0')
         for (let i = 2; i <= lastNonce; i++) {
-            claimPromises.push(new Promise(async () => {
+            claimPromises.push((async () => {
                 const requestSdk = await wallet.withAccountNumber(i)
-                const unclaimedBitcoinDepostis = await requestSdk.listUnclaimDeposits()
-                await Promise.all(unclaimedBitcoinDepostis.map(async (d) => {
-                    return requestSdk.claimDeposit(d.txid, d.vout)
-                }))
+                const unclaimedBitcoinDeposits = await requestSdk.listUnclaimDeposits()
+                
+                await Promise.all(unclaimedBitcoinDeposits.map(d => 
+                    requestSdk.claimDeposit(d.txid, d.vout)
+                ))
 
-                let balance = await requestSdk.getBalance()
-                let satsBalance = Number(balance.balance)
+                const balance = await requestSdk.getBalance()
+                const satsBalance = Number(balance.balance)
+                
                 if (satsBalance > 0) {
                     console.log('claiming from sub account', i, satsBalance / 100_000_000)
-                    return requestSdk.sendSparkPayment(sparkAddress, satsBalance)
+                    await requestSdk.sendSparkPayment(sparkAddress, satsBalance)
                 }
-            }))
+            })())
         }
 
-        await Promise.all(claimPromises)
+        await Promise.allSettled(claimPromises)
     }
 
     const fetchData = async (wallet: Wallet) => {
-        const btcAddresses = await wallet.getBitcoinAddress()
-        const sparkAddress = await wallet.getSparkAddress()
-        const lnAddress = await wallet.getLightningAddress()
+        const [btcAddresses, sparkAddress, lnAddress, metadata, , , payments] = await Promise.all([
+            wallet.getBitcoinAddress(),
+            wallet.getSparkAddress(),
+            wallet.getLightningAddress(),
+            wallet.getTokenMetadata().catch(() => null),
+            refreshPaymentRequests(),
+            refreshReceipts(),
+            wallet.listPayments()
+        ])
+
         const addresses = {
             btc: btcAddresses,
             ln: lnAddress,
@@ -91,52 +107,29 @@ export const DashboardPage = () => {
         }
 
         setAddresses(addresses)
+        setWalletHistory(payments)
+        await updateBalance(wallet)
 
-        await refreshPaymentRequests()
-        await refreshReceipts()
+        if (metadata) {
+            setTokenMetadata(metadata)
+            await refreshIssuanceStats(wallet, metadata)
+        }
 
-        setTimeout(() => claimPaymentRequestBalances(sparkAddress), 0)
-
+        setTimeout(() => claimPaymentRequestBalances(sparkAddress), 100)
         setTimeout(async () => {
-            const prices = await wallet.fetchPrices()
-            const p = prices.find(p => p.currency.toUpperCase() == currency.toUpperCase())
-            if (p) {
-                setPrice(p.value)
-            }
-        }, 0)
-
-        setTimeout(async () => {
-            try {
-                const metadata = await wallet.getTokenMetadata()
-                if (metadata) {
-                    setTokenMetadata(metadata)
-                    await refreshIssuanceStats(wallet, metadata)
-                }
-            }
-            catch (e: any) { }
-        })
-
-        setTimeout(async () => {
-            await updateBalance(wallet)
-
-            wallet.on('synced', async () => {
-                await updateBalance(wallet)
-
-                const payments = await wallet.listPayments()
-                setWalletHistory(payments)
-
-                if (tokenMetadata) {
-                    refreshIssuanceStats(wallet, tokenMetadata)
-                }
-            })
+            // const prices = await wallet.fetchPrices()
+            // const p = prices.find(p => p.currency.toUpperCase() == currency.toUpperCase())
+            // if (p) {
+            //     setPrice(p.value)
+            // }
         }, 0)
 
         setInterval(async () => {
-            const prices = await wallet.fetchPrices()
-            const p = prices.find(p => p.currency.toUpperCase() == currency.toUpperCase())
-            if (p) {
-                setPrice(p.value)
-            }
+            // const prices = await wallet.fetchPrices()
+            // const p = prices.find(p => p.currency.toUpperCase() == currency.toUpperCase())
+            // if (p) {
+            //     setPrice(p.value)
+            // }
         }, 60_000)
     }
 
@@ -146,21 +139,22 @@ export const DashboardPage = () => {
             .then(async ({ sparkStatus }) => {
                 if (sparkStatus == 'operational') {
                     setErrorSpark(undefined)
+                    setTimeout(async () => {
+                        const notifSettings = await getNotifSettings(wallet)
+                        if (!notifSettings || (notifSettings.email == undefined && notifSettings.npub == undefined)) {
+                            setNotifSettingAlert(true)
+                        }
+                    })
                     await fetchData(wallet)
-
                     setInitializing(false)
                 }
                 else {
                     setErrorSpark(`Spark status is not operational. Please retry in few moments. We are sorry for this inconvenience.`)
                 }
             })
-            .catch(async () => {
-                // Unknown status, unable to retrieve Spark status.
-                // We try with optimism the network is ok
-                setErrorSpark(undefined)
-                await fetchData(wallet)
-
-                setInitializing(false)
+            .catch(async (e) => {
+                console.log(e)
+                setErrorSpark('An error occured. Please retry in few moments. We are sorry for this inconvenience.')
             })
     }, [wallet])
 
@@ -253,14 +247,15 @@ export const DashboardPage = () => {
     }
 
     const handleClaimPaymentRequest = async (id: string) => {
+        if (!addresses) return
+
         const paymentRequest = paymentRequests.find(p => p.id == id) as Payment
         if (!paymentRequest || !wallet) return
 
         const requestSdk = await wallet.withAccountNumber(paymentRequest.nonce)
 
         const asset = { name: "Bitcoin", symbol: "BTC", max: 0 }
-        const sparkAddress = await wallet.getSparkAddress()
-        await send(requestSdk, asset, paymentRequest.claimable, sparkAddress, 'spark')
+        await send(requestSdk, asset, paymentRequest.claimable, addresses.spark, 'spark')
         await refreshPaymentRequests()
     }
 
@@ -317,10 +312,34 @@ export const DashboardPage = () => {
 
     return (
         <div className="flex flex-col w-full gap-10">
-            {errorSpark && <div className="bg-primary/20 text-primary text-sm font-mono p-2 rounded-lg border-1 border-primary/40 items-center flex gap-2">
-                <LucideMessageSquareWarning />
-                <span>{errorSpark}</span>
-            </div>}
+            {hasSecuredMnemonic == 'false' && <Alert className="py-5">
+                <AlertTriangleIcon />
+                <AlertTitle>Secure your wallet before going live</AlertTitle>
+                <AlertDescription className="flex flex-col gap-2">
+                    <div className="flex flex-col">
+                        <p className="font-bold text-primary">Your secret phrase has not been saved yet. </p>
+                        <p>If you lose access to this device, your funds cannot be recovered by anyone — including us.</p>
+                    </div>
+                    <div><Button className="h-4 text-xs p-5" onClick={() => navigate('/app/settings')}>Export your secret phrase</Button></div>
+                </AlertDescription>
+            </Alert>}
+            {notifSettingAlert && <Alert className="py-5">
+                <IconMessageDollar />
+                <AlertTitle>Be notified when you're paid</AlertTitle>
+                <AlertDescription className="flex flex-col gap-2">
+                    <div className="flex flex-col">
+                        <p>You can active notifications to get updates when your payment is processed.</p>
+                    </div>
+                    <div><Button variant='outline' className="h-4 text-xs p-4 mt-0" onClick={() => navigate('/app/settings')}>Enable notifications</Button></div>
+                </AlertDescription>
+            </Alert>}
+            {errorSpark && <Alert className="py-5 bg-primary/10 text-primary border-1 border-primary/20">
+                <AlertTriangle />
+                <AlertTitle className="font-semibold">Networking issue</AlertTitle>
+                <AlertDescription className="flex flex-col gap-5 text-foreground">
+                    {errorSpark}
+                </AlertDescription>
+            </Alert>}
             <div className="flex flex-col gap-2 justify-between">
                 <h1 className="text-4xl font-serif font-normal text-foreground flex items-center">Dashboard {initializing && <Spinner className="ml-2 text-primary" />}</h1>
                 <h2 className="text-1xl font-light text-muted-foreground">Turn paid work into Bitcoin-anchored receipts that reward repeat clients.</h2>
@@ -580,7 +599,7 @@ export const DashboardPage = () => {
                         }
                     </CardContent>
                 </Card>
-                <Card className="lg:col-span-1" id="receipts">
+                {(initializing || (!initializing && tokenMetadata)) && <Card className="lg:col-span-1" id="receipts">
                     <CardHeader className="flex flex-col">
                         <CardTitle className="flex 2xl:flex-row flex-col justify-between w-full gap-10">
                             <div className="flex flex-col lg:flex-row justify-between lg:w-full gap-5">
@@ -607,16 +626,15 @@ export const DashboardPage = () => {
                             </div>
                         }
                         <div className="md:max-w-full max-w-xs">
-                            {!initializing &&
+                            {!initializing && tokenMetadata &&
                                 <ReceiptTable
-                                    network={wallet?.getNetwork() as string}
                                     receipts={receipts}
                                     paymentRequests={paymentRequests}
                                     onMetadataChange={handleReceiptMetadataChange} />
                             }
                         </div>
                     </CardContent>
-                </Card>
+                </Card>}
             </div>
         </div>
     )

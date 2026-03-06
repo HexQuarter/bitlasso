@@ -53,9 +53,10 @@ export function SiteHeader() {
     } sparkAddress
   }, [wallet])
 
-  const logout = () => {
+  const logout = async () => {
     localStorage.removeItem('BITLASSO_MNEMONIC')
-    localStorage.removeItem('BITLASSO_NONCE')
+    localStorage.removeItem('BITLASSO_PAYMENT_NONCE')
+    localStorage.removeItem('BITLASSO_SECURED_MNEMONIC')
     navigate('/', { replace: true })
   }
 

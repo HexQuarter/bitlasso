@@ -8,8 +8,6 @@ import { useWallet } from "@/hooks/use-wallet";
 import { ArrowRight } from "lucide-react";
 
 import LogoPng from '../../public/logo.svg'
-import type { NotificationSettings } from "@/components/app/notification-setting";
-import { registerNotifSettings } from "@/lib/nostr";
 
 export const LoginPage = () => {
     const { storeWallet } = useWallet()
@@ -18,12 +16,11 @@ export const LoginPage = () => {
     const [loading, setLoading] = useState(false)
     const navigate = useNavigate()
 
-    const handlePassphraseSubmit = async (mnemonic: string, notifSettings: NotificationSettings) => {
+    const handlePassphraseSubmit = async (mnemonic: string) => {
         setLoading(true)
         console.log('authenticating user...')
 
-        const wallet = await storeWallet(mnemonic)
-        await registerNotifSettings(wallet, notifSettings)
+        await storeWallet(mnemonic)
 
         setLoading(false)
         navigate('/app/dashboard', { replace: true })
@@ -101,15 +98,12 @@ export const LoginPage = () => {
 
                     <Card className="w-full">
                         <CardContent>
-                            <div className="flex flex-col gap-10 p-5 lg:p-20 ">
-                                <div className="flex flex-col items-center gap-10">
+                            {!showPassphraseForm && !showCreateWalletForm && <div className="flex flex-col gap-10 p-5 lg:p-20 ">
+                                <div className="flex flex-col items-center gap-10 text-center ">
                                     <h1 className="w-full font-serif text-4xl font-normal text-foreground">
                                         Welcome !
                                     </h1>
                                     <h2 className="w-full font-serif text-2xl lg:text-3xl font-normal text-foreground">Access your <span className="text-primary">workspace</span></h2>
-                                    <div className="text-left flex flex-col gap-5 w-full">
-                                        <p className="text-muted-foreground">Sign in with a Spark-compatible Bitcoin wallet to issue work receipts and manage loyalty.</p>
-                                    </div>
                                 </div>
                                 {!showPassphraseForm && !showCreateWalletForm &&
                                     <div className="flex flex-col lg:flex-row items-center justify-center gap-2">
@@ -123,14 +117,14 @@ export const LoginPage = () => {
                                         </button>
                                     </div>
                                 }
-                                {showPassphraseForm &&
-                                    <PassphraseForm onSubmit={handlePassphraseSubmit} onBack={() => setShowPassphraseForm(false)} loading={loading} />
-                                }
-                                {showCreateWalletForm &&
-                                    <CreateWalletForm onSubmit={handlePassphraseSubmit} onBack={() => setShowCreateWalletForm(false)} loading={loading} />
-                                }
                                 <p className="text-xs px-6 text-slate-400 text-center">Non-custodial. Your keys stay with you.</p>
-                            </div>
+                            </div>}
+                            {showPassphraseForm &&
+                                <PassphraseForm onSubmit={handlePassphraseSubmit} onBack={() => setShowPassphraseForm(false)} loading={loading} />
+                            }
+                            {showCreateWalletForm &&
+                                <CreateWalletForm onSubmit={handlePassphraseSubmit} onBack={() => setShowCreateWalletForm(false)} loading={loading} />
+                            }
                         </CardContent>
                     </Card>
 
