@@ -9,6 +9,7 @@ import { Button } from "../ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "../ui/chart"
 import { Area, AreaChart, CartesianGrid } from "recharts"
 import { useMemo } from "react"
+import { Skeleton } from "../ui/skeleton"
 
 type Token = {
     id: string
@@ -26,6 +27,7 @@ type Props = {
     onSend: (method: 'spark' | 'lightning' | 'bitcoin', asset: Asset, amount: number, recipient: string) => Promise<void>
     payments: ExtendedPayment[]
     wallet: Wallet
+    walletHistoryLoading: boolean
 }
 
 type ExtendedPayment = SparkPayment & {
@@ -41,7 +43,7 @@ const chartConfig = {
     }
 } satisfies ChartConfig
 
-export const WalletCard: React.FC<Props> = ({ btcBalance, tokens, addresses, price, currency, onSend, payments, wallet }) => {
+export const WalletCard: React.FC<Props> = ({ btcBalance, tokens, addresses, price, currency, onSend, payments, wallet, walletHistoryLoading }) => {
     const assets: Asset[] = [
         { name: "Bitcoin", symbol: "BTC", max: btcBalance },
         ...tokens.map((t) => {
@@ -111,7 +113,12 @@ export const WalletCard: React.FC<Props> = ({ btcBalance, tokens, addresses, pri
                     <Send assets={assets} price={price} onSend={onSend} wallet={wallet} />
                     <Receive addresses={addresses} />
                 </div>
-                <ChartContainer
+                {walletHistoryLoading &&
+                    <div className="flex flex-col gap-2">
+                        <Skeleton className="h-50 w-full" />
+                    </div>
+                }
+                {!walletHistoryLoading && <ChartContainer
                     config={chartConfig}
                     className="aspect-auto h-[150px] w-full"
                 >
@@ -129,7 +136,7 @@ export const WalletCard: React.FC<Props> = ({ btcBalance, tokens, addresses, pri
                             stackId="a"
                         />
                     </AreaChart>
-                </ChartContainer>
+                </ChartContainer>}
             </CardContent>
         </Card>
     )

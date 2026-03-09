@@ -26,9 +26,23 @@ export function sparkBech32ToHex(bech32Id: string) {
 }
 
 export const send = (wallet: Wallet, asset: Asset, amount: number, recipient: string, method: "spark" | "lightning" | "bitcoin") => {
-  return new Promise<void>(async (resolve, reject) => {
+  return new Promise<string>(async (resolve, reject) => {
     try {
+      console.log(`Sending ${amount} ${asset.symbol} to ${shortenAddress(recipient)}.`)
       toast.info(`Sending ${amount} ${asset.symbol} to ${shortenAddress(recipient)}.`)
+
+      wallet.on('paymentSent', (payment) => {
+        toast.success(`Sent ${amount} ${asset.symbol} to ${shortenAddress(recipient)}.`)
+        resolve(payment.id)
+      })
+      wallet.on('paymentPending', () => {
+        toast.info(`Payment pending`)
+      })
+      wallet.on('paymentFailed', () => {
+        console.log('Failure')
+        toast.error(`Failed to send ${amount} ${asset.symbol} to ${shortenAddress(recipient)}.`)
+        reject()
+      })
 
       const satsAmount = Math.floor(amount * 100_000_000)
       switch (method) {
@@ -41,8 +55,8 @@ export const send = (wallet: Wallet, asset: Asset, amount: number, recipient: st
             const tokenMetadata = await wallet.getTokenMetadata(asset.identifier as Bech32mTokenIdentifier)
             if (tokenMetadata) {
               const tokenAmount = BigInt(amount * (10 ** tokenMetadata.decimals))
-              await wallet.sendTokenTransfer(asset.identifier as Bech32mTokenIdentifier, tokenAmount, recipient)
-              resolve()
+              const { paymentId } = await wallet.sendTokenTransfer(asset.identifier as Bech32mTokenIdentifier, tokenAmount, recipient)
+              resolve(paymentId)
             }
             else {
               toast.error(`Failed to send ${asset.name} tokens. Cannot find metadata`)
@@ -51,12 +65,12 @@ export const send = (wallet: Wallet, asset: Asset, amount: number, recipient: st
           }
           break;
         case 'lightning':
-          await wallet.sendLightningPayment(recipient, satsAmount)
-          resolve()
+          const { paymentId: lnPaymentId } = await wallet.sendLightningPayment(recipient, satsAmount)
+          resolve(lnPaymentId)
           break;
         case 'bitcoin':
-          await wallet.sendOnChainPayment(recipient, satsAmount)
-          resolve()
+          const { paymentId: btcPaymentId } = await wallet.sendOnChainPayment(recipient, satsAmount)
+          resolve(btcPaymentId)
           break;
       }
     } catch (e) {
@@ -74,3 +88,4 @@ export function toBaseUnits(amount: string, decimals: number): bigint {
   return BigInt(whole || "0") * 10n ** BigInt(decimals) + BigInt(fractionPadded || "0");
 }
 
+export const uint8ArrayToNum = (data: Uint8Array) => data.reduce((acc, byte) => (acc << 8n) | BigInt(byte), 0n);

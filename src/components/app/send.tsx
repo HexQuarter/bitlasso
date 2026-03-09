@@ -19,6 +19,8 @@ export type Asset = {
     identifier?: string
 }
 
+export const BTCAsset = { name: "Bitcoin", symbol: "BTC" } as Asset
+
 type Props = {
     assets: Asset[]
     price: number
@@ -141,16 +143,16 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
                 return
             }
             try {
-                // const validAddress = await wallet.validAddress(r, method)
-                // if (!validAddress) {
-                //     if (method != 'lightning') {
-                //         setRecipientError('Invalid recipient address')
-                //     }
-                //     else {
-                //         setRecipientError('Invalid recipient invoice/address')
-                //     }
-                //     return
-                // }
+                const validAddress = await wallet.validAddress(r, method)
+                if (!validAddress) {
+                    if (method != 'lightning') {
+                        setRecipientError('Invalid recipient address')
+                    }
+                    else {
+                        setRecipientError('Invalid recipient invoice/address')
+                    }
+                    return
+                }
                 setRecipient(r)
             }
             catch (e) {
@@ -169,7 +171,7 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
             <DialogTrigger asChild onClick={() => handleOpenChange(true)} >
                 <div className="flex flex-col items-center gap-2">
                     <div className="rounded-full ring-1 ring-border p-3 text-primary hover:ring-primary hover:cursor-pointer hover:bg-primary/10">
-                            <ArrowUp className="h-4 w-4"/>
+                        <ArrowUp className="h-4 w-4" />
                     </div>
                     <span className="text-sm text-muted-foreground">Send</span>
                 </div>

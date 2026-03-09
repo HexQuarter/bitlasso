@@ -10,36 +10,30 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { ArrowRight, Check, Coins, Plus } from "lucide-react"
+import { Coins, Plus } from "lucide-react"
 import type React from "react"
-import { useState, type FormEvent } from "react"
-import { Spinner } from "@/components/ui/spinner"
+import { useState } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-
-const USD_FEE = 1
-
-
-const included = [
-    "Payment page generation",
-    "Multi payment support: Spark, Lightning, Bitcoin",
-    "Client redemption flow",
-    "No custody of funds"
-]
+import { ActivePayment } from "./activate-payment"
+import type { Settings } from "@/lib/api"
 
 export type PaymentRequestData = {
     description?: string
     amount: number
-    feeBTC: number
+    feeBTC?: number
+    credits?: number
     discountRate: number
 }
 
 type Props = {
+    settings: Settings
     onSubmit: (data: PaymentRequestData) => Promise<void>
     price: number
+    creditBalance: number
 }
 
-export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price }) => {
+export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price, settings, creditBalance }) => {
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
 
@@ -47,8 +41,6 @@ export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price }) => {
     const [description, setDescription] = useState("")
     const [ready, setReady] = useState(false)
     const [discountRate, setDiscountRate] = useState(10)
-
-    const feeBTC = usdToBtc(USD_FEE, price);
 
     const handleChangeAmount = (val: string) => {
         const amount = parseFloat(val)
@@ -70,14 +62,14 @@ export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price }) => {
         setDiscountRate(amount)
     }
 
-    const handleSubmit = async (e: FormEvent) => {
+    const handleActivatePayment = async (feeBTC?: number, credits?: number) => {
         try {
-            e.preventDefault()
             setLoading(true)
             await onSubmit({
                 amount,
                 description,
                 feeBTC,
+                credits,
                 discountRate
             })
             setLoading(false)
@@ -88,11 +80,6 @@ export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price }) => {
         }
     }
 
-    function usdToBtc(usd: number, btcPriceUsd: number) {
-        // btcPriceUsd = USD per 1 BTC
-        return Math.floor(usd * 100_000_000 / btcPriceUsd) / 100_000_000;
-    }
-    
     const handleOpenChange = (open: boolean) => {
         if (!open) {
             setAmount(0)
@@ -114,7 +101,7 @@ export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price }) => {
                         Request a Bitcoin payment for completed work.
                     </DialogDescription>
                 </DialogHeader>
-                <form onSubmit={(e) => handleSubmit(e)}>
+                <form>
                     <div className="flex flex-col gap-4 my-4">
                         <Card className="bg-white">
                             <CardHeader>
@@ -148,32 +135,7 @@ export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price }) => {
                             </CardContent>
                         </Card>
                         { ready && <DialogFooter>
-                            <Card className={`overflow-hidden rounded-2xl border border-border/40 bg-background transition-all duration-1000 delay-200 w-full`}>
-                                <CardHeader className="border-b border-border/40 flex flex-col gap-4">
-                                    <p className="font-medium font-mono text-primary uppercase text-xs">Before you proceed</p>
-                                    <p className="text-normal font-muted-foreground text-sm">Activating this payment request costs <br /><strong>{(new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(USD_FEE))} ({feeBTC} BTC)</strong>. </p>
-                                    <p className="text-normal font-muted-foreground text-sm">This one-time fee includes:</p>
-                                </CardHeader>
-                                <CardContent className="flex flex-col">
-                                    {included.map((item, i) => (
-                                        <div
-                                            key={item}
-                                            className={`flex items-center gap-4 py-4 ${i < included.length - 1 ? "border-b border-border/20" : ""}`}
-                                        >
-                                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                                                <Check className="h-3.5 w-3.5 text-primary" />
-                                            </div>
-                                            <span className="text-sm text-foreground/80">{item}</span>
-                                        </div>
-                                    ))}
-                                </CardContent>
-                                <CardFooter className="py-8 flex flex-col gap-2">
-                                    <Button className="w-full" disabled={loading}>
-                                        Create payment request
-                                        {loading && <Spinner />}{!loading && <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />}
-                                    </Button>
-                                </CardFooter>
-                            </Card>
+                            <ActivePayment settings={settings} loading={loading} price={price} onSubmit={handleActivatePayment} creditBalance={creditBalance} />
                         </DialogFooter>}
                         <DialogClose asChild><Button variant="outline" className="w-full bg-white">Cancel</Button></DialogClose>
                     </div>

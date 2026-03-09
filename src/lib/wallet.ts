@@ -1,15 +1,12 @@
-import { SparkWallet, type Bech32mTokenIdentifier } from "@buildonspark/spark-sdk";
-import { ExitSpeed } from "@buildonspark/spark-sdk/types";
-import { IssuerSparkWallet } from "@buildonspark/issuer-sdk";
+import { defaultConfig, SdkBuilder, type BreezSdk, type DepositInfo, type Payment, type PrepareLnurlPayResponse, type PrepareSendPaymentResponse, type SdkEvent, type Seed } from "@breeztech/breez-sdk-spark/web";
+import { SparkWallet } from "@buildonspark/spark-sdk";
 import { getNostrKeyPair, type NostrKeyPair } from "./nostr";
-import { finalizeEvent, type EventTemplate, type VerifiedEvent } from "nostr-tools";
+import { uint8ArrayToNum } from "./utils";
 import { bytesToHex, hexToBytes } from "nostr-tools/utils";
+import { finalizeEvent, type EventTemplate, type VerifiedEvent } from "nostr-tools";
 import { toast } from "sonner";
-
-const BURN_PUBLIC_KEY =
+export const BURN_PUBLIC_KEY =
     "020202020202020202020202020202020202020202020202020202020202020202";
-
-const uint8ArrayToNum = (data: Uint8Array) => data.reduce((acc, byte) => (acc << 8n) | BigInt(byte), 0n);
 
 export type TokenMetadata = {
     identifier: string;
@@ -43,7 +40,33 @@ export type SparkPayment = {
     direction: SparkPaymentDirection
 }
 
+export type PriceRate = {
+    currency: string
+    value: number
+}
+
 export type SparkPaymentDirection = "INCOMING" | "OUTGOING"
+
+type EventMap = Record<string, any>;
+export class TypedEventEmitter<Events extends EventMap> {
+    private events = new Map<keyof Events, Array<Events[keyof Events]>>();
+
+    on<K extends keyof Events>(event: K, listener: Events[K]): this {
+        const listeners = this.events.get(event) || [];
+        listeners.push(listener);
+        this.events.set(event, listeners);
+        return this;
+    }
+
+    emit<K extends keyof Events>(event: K, ...args: Parameters<Events[K]>): boolean {
+        const listeners = this.events.get(event);
+        if (listeners) {
+            listeners.forEach((listener) => listener(...args));
+            return true;
+        }
+        return false;
+    }
+}
 
 interface _SparkWallet {
     getSparkAddress: () => Promise<string>;
@@ -51,7 +74,7 @@ interface _SparkWallet {
     getLightningAddress: () => Promise<string>;
     createLightningInvoice: (amountSats?: number, description?: string) => Promise<{ invoice: string }>;
     mintTokens: (amount: bigint) => Promise<{ id: string, timestamp: Date }>;
-    burnTokens: (amount: bigint) => Promise<{ id: string, timestamp: Date }>;
+    burnTokens: (amount: bigint, tokenIdentifier?: string) => Promise<{ id: string, timestamp: Date }>;
     getTokenMetadata: (identifier?: string) => Promise<TokenMetadata | undefined>;
     getTokenStats: (tokenMetadata: TokenMetadata) => Promise<undefined | TokenStats>;
     createToken: (name: string, symbol: string, initialSupply: bigint, decimals: number, isFreezable: boolean) => Promise<{ tokenId: string }>;
@@ -67,6 +90,9 @@ interface _SparkWallet {
     listPayments(): Promise<SparkPayment[]>
     listUnclaimDeposits(): Promise<Deposit[]>
     claimDeposit(txId: string, vout: number): Promise<void>
+    fetchPrices(): Promise<PriceRate[]>
+    on<K extends keyof BreezEvent>(eventName: K, callback: BreezEvent[K]): void
+    validAddress(string: string, method?: 'spark' | 'lightning' | 'bitcoin'): Promise<boolean>
 }
 
 interface NostrWallet {
@@ -76,131 +102,280 @@ interface NostrWallet {
 
 export type Wallet = _SparkWallet & NostrWallet
 
-type Deposit = {
+export type Deposit = {
     txid: string;
     vout: number;
 }
 
-export class BareSparkWallet implements Wallet {
-    private wallet: IssuerSparkWallet
-    private nostrKeypair: NostrKeyPair | undefined
-    private builderSparkWalletFn: (accountNumber: number) => Promise<IssuerSparkWallet>
+interface BreezEvent {
+    synced: () => void;
+    unclaimedDeposits: (unclaimedDeposits: DepositInfo[]) => void;
+    claimedDeposits: (claimedDeposits: DepositInfo[]) => void;
+    paymentReceived: (payment: Payment) => void
+    paymentSent: (payment: Payment) => void
+    paymentPending: (payment: Payment) => void
+    paymentFailed: (payment: Payment) => void
+}
 
-    constructor(builderSparkWalletFn: (accountNumber: number) => Promise<IssuerSparkWallet>, sparkWallet: IssuerSparkWallet) {
-        this.wallet = sparkWallet
+export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements Wallet {
+    private sdk: BreezSdk;
+    private sparkWallet: SparkWallet;
+    private builderNewFn: () => Promise<SdkBuilder>;
+    private builderSparkWalletFn: (accountNumber: number) => Promise<SparkWallet>
+    private nostrKeypair: NostrKeyPair | undefined;
+
+    constructor(builderNewFn: () => Promise<SdkBuilder>, builderSparkWalletFn: (accountNumber: number) => Promise<SparkWallet>, sdk: BreezSdk, sparkWallet: SparkWallet) {
+        super()
+        this.builderNewFn = builderNewFn;
         this.builderSparkWalletFn = builderSparkWalletFn
-
-        this.wallet.on("deposit:confirmed", (depositId, updatedBalance) => {
-            toast.info(`Deposit ${depositId} confirmed! New balance: ${updatedBalance}`);
-        });
-        this.wallet.on("transfer:claimed", (transferId, updatedBalance) => {
-            console.log(`Incoming transfer ${transferId}! New balance: ${updatedBalance} sats`);
-        });
+        this.sdk = sdk;
+        this.sparkWallet = sparkWallet
     }
 
-    async withAccountNumber(nonce: number): Promise<BareSparkWallet> {
+    async withAccountNumber(nonce: number): Promise<BreezSparkWallet> {
+        let builder = await this.builderNewFn()
+        builder = builder.withKeySet({
+            keySetType: 'default',
+            useAddressIndex: false,
+            accountNumber: nonce
+        })
+        const sdk = await builder.build()
         const sparkWallet = await this.builderSparkWalletFn(nonce)
-        return new BareSparkWallet(this.builderSparkWalletFn, sparkWallet)
+
+        return new BreezSparkWallet(this.builderNewFn, this.builderSparkWalletFn, sdk, sparkWallet)
     }
 
-    static async initialize(mnemonic: string): Promise<BareSparkWallet> {
-        const { wallet } = await IssuerSparkWallet.initialize({ mnemonicOrSeed: mnemonic, accountNumber: 1, options: { network: "MAINNET" } })
+    static async initialize(mnemonic: string, apiKey: string): Promise<BreezSparkWallet> {
+        const seed: Seed = { type: 'mnemonic', mnemonic: mnemonic, passphrase: undefined }
+        const config = defaultConfig('mainnet')
+        config.apiKey = apiKey
+        config.maxDepositClaimFee = { type: 'rate', satPerVbyte: 10 }
+
+        let builder = SdkBuilder.new(config, seed)
+        builder = await builder.withDefaultStorage('./bitlasso')
+        builder = builder.withKeySet({
+            keySetType: 'default',
+            useAddressIndex: false,
+            accountNumber: 1
+        })
+        const sdk = await builder.build()
+        await sdk.updateUserSettings({
+            sparkPrivateModeEnabled: false
+        })
+
         const buildSparkWalletFn = async (accountNumber: number) => {
-            const { wallet } = await IssuerSparkWallet.initialize({ mnemonicOrSeed: mnemonic, accountNumber: accountNumber, options: { network: "MAINNET" } })
+            const { wallet } = await SparkWallet.initialize({ mnemonicOrSeed: mnemonic, accountNumber: accountNumber, options: { network: "MAINNET" } })
             return wallet
         }
 
-        const instance = new BareSparkWallet(buildSparkWalletFn, wallet)
+        const sparkWallet = await buildSparkWalletFn(1)
+
+        const instance = new BreezSparkWallet(async () => {
+            let builder = SdkBuilder.new(config, seed)
+            builder = await builder.withDefaultStorage('./bitlasso')
+            return builder
+        }, buildSparkWalletFn, sdk, sparkWallet)
+
+        class JsEventListener {
+            onEvent = async (event: SdkEvent) => {
+                console.log(event)
+                switch (event.type) {
+                    case 'synced': {
+                        // Data has been synchronized with the network. When this event is received,
+                        // it is recommended to refresh the payment list and wallet balance.
+                        instance.emit('synced')
+                        break
+                    }
+                    case 'unclaimedDeposits': {
+                        // SDK was unable to claim some deposits automatically
+                        const unclaimedDeposits = event.unclaimedDeposits
+                        instance.emit('unclaimedDeposits', unclaimedDeposits)
+                        break
+                    }
+                    case 'claimedDeposits': {
+                        // Deposits were successfully claimed
+                        const claimedDeposits = event.claimedDeposits
+                        instance.emit('claimedDeposits', claimedDeposits)
+                        break
+                    }
+                    case 'paymentSucceeded': {
+                        // A payment completed successfully
+                        const payment = event.payment
+                        if (payment.paymentType == 'receive') {
+                            instance.emit('paymentReceived', payment)
+                        }
+                        else {
+                            instance.emit('paymentSent', payment)
+                        }
+                        break
+                    }
+                    case 'paymentPending': {
+                        // A payment is pending (waiting for confirmation)
+                        const pendingPayment = event.payment
+                        instance.emit('paymentPending', pendingPayment)
+                        break
+                    }
+                    case 'paymentFailed': {
+                        // A payment failed
+                        const failedPayment = event.payment
+                        instance.emit('paymentFailed', failedPayment)
+                        break
+                    }
+                    default: {
+                        // Handle any future event types
+                        break
+                    }
+                }
+            }
+        }
+
+        await sdk.addEventListener(new JsEventListener())
+
+        try {
+            const unclaimedDeposits = await sdk.listUnclaimedDeposits({})
+            if (unclaimedDeposits.deposits.length > 0) {
+                const promises = unclaimedDeposits.deposits.map(d => {
+                    return sdk.claimDeposit({ txid: d.txid, vout: d.vout })
+                })
+                await Promise.all(promises)
+            }
+        }
+        catch (e) {
+            console.error('cannot claim deposit')
+        }
+
         instance.nostrKeypair = getNostrKeyPair(mnemonic)
 
-        return instance
+        instance.on('paymentReceived', (payment) => {
+            if (payment.method != 'token') {
+                toast.success(`Received payment of ${Number(payment.amount) / 100_000_000} BTC`)
+            }
+        })
+        instance.on('paymentPending', (payment) => {
+            if (payment.paymentType == 'receive') {
+                toast.info(`Payment incoming. Waiting for confirmation...`)
+            }
+        })
+
+        return instance;
     }
 
     async getBalance(): Promise<Balance> {
-        const balance = await this.wallet.getBalance()
+        const info = await this.sdk.getInfo({
+            // ensureSynced: true will ensure the SDK is synced with the Spark network
+            // before returning the balance
+            ensureSynced: false
+        })
+
         const tokenBalances = new Map() as TokenBalanceMap
-        balance.tokenBalances.forEach(async (tb, id) => {
+        info.tokenBalances.forEach(async (tb, id) => {
             tokenBalances.set(id, {
-                balance: BigInt(tb.ownedBalance),
+                balance: BigInt(tb.balance),
                 tokenMetadata: {
                     identifier: id,
-                    name: tb.tokenMetadata.tokenName,
-                    symbol: tb.tokenMetadata.tokenTicker,
-                    maxSupply: tb.tokenMetadata.maxSupply,
+                    name: tb.tokenMetadata.name,
+                    symbol: tb.tokenMetadata.ticker,
+                    maxSupply: BigInt(tb.tokenMetadata.maxSupply),
                     decimals: tb.tokenMetadata.decimals
                 }
             })
         })
 
         return {
-            balance: balance.balance,
+            balance: BigInt(info.balanceSats),
             tokenBalances: tokenBalances
         }
     }
 
     async getBitcoinAddress(): Promise<string> {
-        return await this.wallet.getStaticDepositAddress()
+        const response = await this.sdk.receivePayment({
+            paymentMethod: { type: 'bitcoinAddress' }
+        })
+        const paymentRequest = response.paymentRequest
+        return paymentRequest
     }
 
     async getSparkAddress(): Promise<string> {
-        return await this.wallet.getSparkAddress()
+        const response = await this.sdk.receivePayment({
+            paymentMethod: { type: 'sparkAddress' }
+        })
+        const paymentRequest = response.paymentRequest
+        return paymentRequest
     }
 
     async getLightningAddress(): Promise<string> {
-        const { invoice } = await this.wallet.createLightningInvoice({
-            amountSats: 0,
-            expirySeconds: 0
+        const bitcoinAddress = await this.getBitcoinAddress()
+        const isAvailable = await this.sdk.checkLightningAddressAvailable({
+            username: bitcoinAddress
         })
-
-        return invoice.encodedInvoice
+        if (isAvailable) {
+            const info = await this.sdk.registerLightningAddress({ username: bitcoinAddress })
+            return info.lightningAddress
+        }
+        else {
+            const info = await this.sdk.getLightningAddress()
+            if (info) {
+                return info.lightningAddress
+            }
+            throw new Error('Cannot retrieve lightning address')
+        }
     }
 
-    async createLightningInvoice(amountSats?: number, description?: string): Promise<{ invoice: string }> {
+    async createLightningInvoice(amountSats?: number, description?: string): Promise<{ invoice: string, feeSats: bigint }> {
         // Using the SparkWallet with receiverIdentityPubkey allows the backend to be notified once a Lightning payment is done
-        const pubKey = await this.wallet.getIdentityPublicKey()
-        const invoice = await this.wallet.createLightningInvoice({
+        const pubKey = await this.sparkWallet.getIdentityPublicKey()
+        const invoice = await this.sparkWallet.createLightningInvoice({
             amountSats: amountSats || 0,
             memo: description,
             receiverIdentityPubkey: pubKey
         })
-        return { invoice: invoice.invoice.encodedInvoice }
+        return { invoice: invoice.invoice.encodedInvoice, feeSats: 0n }
     }
 
     async mintTokens(amount: bigint): Promise<{ id: string, timestamp: Date }> {
-        const [tokenIdentifier] = await this.wallet.getIssuerTokenIdentifiers()
-        const id = await this.wallet.mintTokens({ tokenIdentifier, tokenAmount: amount })
-        const transfer = await this.wallet.getTransfer(id)
-        if (!transfer) {
-            throw new Error("Cannot mint token")
-        }
-        return { id, timestamp: transfer.createdTime as Date };
+        const tokenIssuer = this.sdk.getTokenIssuer()
+        const payment = await tokenIssuer.mintIssuerToken({ amount })
+        const paymentDetails = payment.details as { type: 'token'; txHash: string };
+        return { id: paymentDetails.txHash, timestamp: new Date(payment.timestamp * 1000) };
     }
 
-    async burnTokens(amount: bigint): Promise<{ id: string, timestamp: Date }> {
-        const [tokenIdentifier] = await this.wallet.getIssuerTokenIdentifiers()
-        const id = await this.wallet.burnTokens({ tokenIdentifier, tokenAmount: amount })
-        const transfer = await this.wallet.getTransfer(id)
-        if (!transfer) {
-            throw new Error("Cannot mint token")
+    async burnTokens(amount: bigint, tokenIdentifier?: string): Promise<{ id: string, timestamp: Date }> {
+        if (tokenIdentifier) {
+            // Burn address
+            const { paymentId } = await this.sendTokenTransfer(tokenIdentifier, amount, 'spark1pgssyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszykl0d2')
+            return { id: paymentId, timestamp: new Date() }
         }
-        return { id, timestamp: transfer.createdTime as Date };
+        const tokenIssuer = this.sdk.getTokenIssuer()
+        const payment = await tokenIssuer.burnIssuerToken({ amount })
+        const paymentDetails = payment.details as { type: 'token'; txHash: string };
+        return { id: paymentDetails.txHash, timestamp: new Date(payment.timestamp * 1000) };
     }
 
     async getTokenMetadata(identifier?: string): Promise<TokenMetadata | undefined> {
-        if (!identifier) {
-            const [tokenIdentifier] = await this.wallet.getIssuerTokenIdentifiers()
-            identifier = tokenIdentifier
-        }
-        const res = await this.wallet.getIssuerTokensMetadata([identifier as Bech32mTokenIdentifier]);
-        if (res.length == 0) {
+        if (identifier) {
+            const res = await this.sdk.getTokensMetadata({
+                tokenIdentifiers: [identifier]
+            })
+            if (res.tokensMetadata.length > 0) {
+                return {
+                    identifier: identifier,
+                    name: res.tokensMetadata[0].name,
+                    symbol: res.tokensMetadata[0].name,
+                    maxSupply: BigInt(res.tokensMetadata[0].maxSupply),
+                    decimals: res.tokensMetadata[0].decimals,
+                }
+            }
             return undefined
         }
+
+        const tokenIssuer = this.sdk.getTokenIssuer()
+        const metadata = await tokenIssuer.getIssuerTokenMetadata()
         return {
-            identifier: identifier,
-            name: res[0].tokenName,
-            symbol: res[0].tokenTicker,
-            maxSupply: res[0].maxSupply,
-            decimals: res[0].decimals,
+            identifier: metadata.identifier,
+            name: metadata.name,
+            symbol: metadata.ticker,
+            maxSupply: BigInt(metadata.maxSupply),
+            decimals: metadata.decimals
         }
     }
 
@@ -211,7 +386,7 @@ export class BareSparkWallet implements Wallet {
             let cursor: string | undefined;
 
             do {
-                const page = await this.wallet.queryTokenTransactionsWithFilters({
+                const page = await this.sparkWallet.queryTokenTransactionsWithFilters({
                     tokenIdentifiers: [tokenMetadata.identifier],
                     pageSize: 50,
                     cursor,
@@ -250,168 +425,286 @@ export class BareSparkWallet implements Wallet {
         }
     }
 
-    async createToken(name: string, symbol: string, _initialSupply: bigint, decimals: number = 1, isFreezable: boolean = false): Promise<{ tokenId: string; }> {
-        const tokenId = await this.wallet.createToken({
-            tokenName: name,
-            tokenTicker: symbol,
+    async createToken(name: string, symbol: string, initialSupply: bigint, decimals: number = 1, isFreezable: boolean = false): Promise<{ tokenId: string; }> {
+        const tokenIssuer = this.sdk.getTokenIssuer()
+        const response = await tokenIssuer.createIssuerToken({
+            name: name,
+            ticker: symbol,
             decimals: decimals,
-            isFreezable: isFreezable
+            isFreezable: isFreezable,
+            maxSupply: initialSupply
         })
 
-        return { tokenId };
+        return { tokenId: response.identifier };
+    }
+
+    async getTokenBalance(): Promise<bigint> {
+        try {
+            const tokenIssuer = this.sdk.getTokenIssuer()
+            const balance = (await tokenIssuer.getIssuerTokenBalance()).balance
+            return balance
+        }
+        catch (error) {
+            console.log("Error fetching token balance:", error);
+            return BigInt(0)
+        }
+    }
+
+    async fetchPrices(): Promise<PriceRate[]> {
+        const response = await this.sdk.listFiatRates()
+        return response.rates.map(v => {
+            return {
+                currency: v.coin,
+                value: v.value
+            } as PriceRate
+        })
     }
 
     async sendSparkPayment(address: string, amountSats: number): Promise<{ paymentId: string }> {
-        const transfer = await this.wallet.transfer({ amountSats, receiverSparkAddress: address })
-        return { paymentId: transfer.id };
+        const prepareResponse = await this.sdk.prepareSendPayment({
+            paymentRequest: address,
+            amount: BigInt(amountSats)
+        })
+
+        const sendResponse = await this.sdk.sendPayment({
+            prepareResponse
+        })
+
+        const payment = sendResponse.payment
+        return { paymentId: payment.id };
     }
 
     async sendTokenTransfer(tokenIdentifier: string, amount: bigint, recipient: string): Promise<{ paymentId: string }> {
-        const transferId = await this.wallet.transferTokens({ 
-            tokenIdentifier: tokenIdentifier as Bech32mTokenIdentifier, 
-            tokenAmount: amount, 
-            receiverSparkAddress: recipient
+        const prepareResponse = await this.sdk.prepareSendPayment({
+            paymentRequest: recipient,
+            amount: BigInt(amount),
+            tokenIdentifier
         })
-        return { paymentId: transferId };
+
+        const sendResponse = await this.sdk.sendPayment({
+            prepareResponse
+        })
+        const payment = sendResponse.payment
+        return { paymentId: payment.id };
     }
 
     async sendOnChainPayment(address: string, amountSats: number): Promise<{ paymentId: string }> {
-        const feeQuote = await this.wallet.getWithdrawalFeeQuote({
-            amountSats: 17000,
-            withdrawalAddress: address
-        });
-        if (!feeQuote) {
-            throw new Error("Cannot get the withrdrawal quote")
-        }
-        const feeAmountSats = (feeQuote.l1BroadcastFeeFast?.originalValue || 0) +
-            (feeQuote.userFeeMedium?.originalValue || 0);
-
-        const withdrawResult = await this.wallet.withdraw({
-            onchainAddress: address,
-            amountSats: amountSats,
-            exitSpeed: ExitSpeed.FAST,
-            feeQuoteId: feeQuote.id,
-            feeAmountSats,
-            deductFeeFromWithdrawalAmount: false,
-        });
-        if (!withdrawResult) {
-            throw new Error("Cannot withdraw")
-        }
-
-        return { paymentId: withdrawResult.id }
-    }
-
-    async sendLightningPayment(invoice: string, amountSats?: number): Promise<{ paymentId: string }> {
-        const feeEstimate = await this.wallet.getLightningSendFeeEstimate({
-            encodedInvoice: invoice
-        });
-
-        const payment = await this.wallet.payLightningInvoice({ 
-            invoice, 
-            maxFeeSats: feeEstimate + 5, 
-            preferSpark: true, 
-            amountSatsToSend: amountSats ? amountSats : undefined
+        const prepareResponse = await this.sdk.prepareSendPayment({
+            paymentRequest: address,
+            amount: BigInt(amountSats)
         })
 
-        const ok = await checkPaymentStatus(payment.id, this.wallet)
-        if (!ok) {
-            throw new Error("Cannot send Lightning payment")
-        }
-
+        const sendResponse = await this.sdk.sendPayment({
+            prepareResponse,
+            options: {
+                type: 'bitcoinAddress',
+                confirmationSpeed: 'medium'
+            },
+        })
+        const payment = sendResponse.payment
         return { paymentId: payment.id }
     }
 
-    async getTransferFee(type: 'spark' | 'bitcoin' | 'token' | 'lightning', addressOrInvoice: string, amountSats?: number): Promise<number> {
+    async sendLightningPayment(invoice: string, amountSats?: number): Promise<{ paymentId: string }> {
+        const response = await this.prepareLightningPayment(invoice, amountSats)
+        if ('payRequest' in response) {
+            const res = await this.sdk.lnurlPay({
+                prepareResponse: response as PrepareLnurlPayResponse
+            })
+            return { paymentId: res.payment.id };
+        } else {
+            const res = await this.sdk.sendPayment({
+                prepareResponse: response as PrepareSendPaymentResponse
+            })
+            return { paymentId: res.payment.id };
+        }
+    }
+
+    async getTransferFee(type: 'spark' | 'bitcoin' | 'token' | "lightning", addressOrInvoice: string, amountSats?: number, tokenIdentifier?: string): Promise<number> {
         switch (type) {
-            case 'spark': return 0
-            case 'token': return 0
-            case "lightning":
-                const lightningFee = await this.wallet.getLightningSendFeeEstimate({
-                    encodedInvoice: addressOrInvoice
+            case 'spark': {
+                const prepareResponse = await this.sdk.prepareSendPayment({
+                    paymentRequest: addressOrInvoice,
+                    amount: amountSats ? BigInt(amountSats) : undefined
                 })
-                return lightningFee
-            case 'bitcoin':
-                const exitFee = await this.wallet.getWithdrawalFeeQuote({
-                    amountSats: amountSats || 0,
-                    withdrawalAddress: addressOrInvoice
-                });
-                if (!exitFee) {
-                    throw new Error("Cannot estimate fee withdraw")
+
+                if (prepareResponse.paymentMethod.type == 'sparkAddress') {
+                    return Number(prepareResponse.paymentMethod.fee);
                 }
-                return exitFee.totalAmount.originalValue
+
+                return 0;
+            }
+            case 'bitcoin': {
+                const prepareResponse = await this.sdk.prepareSendPayment({
+                    paymentRequest: addressOrInvoice,
+                    amount: amountSats ? BigInt(amountSats) : undefined
+                })
+
+                if (prepareResponse.paymentMethod.type == 'bitcoinAddress') {
+                    const feeQuote = prepareResponse.paymentMethod.feeQuote.speedMedium;
+                    return feeQuote.userFeeSat + feeQuote.l1BroadcastFeeSat;
+                }
+
+                return 0;
+            }
+            case 'token': {
+                const prepareResponse = await this.sdk.prepareSendPayment({
+                    paymentRequest: addressOrInvoice,
+                    amount: amountSats ? BigInt(amountSats) : undefined,
+                    tokenIdentifier: tokenIdentifier
+                })
+
+                if (prepareResponse.paymentMethod.type == 'sparkAddress') {
+                    return Number(prepareResponse.paymentMethod.fee);
+                }
+
+                return 0;
+            }
+            case 'lightning': {
+                const prepareResponse = await this.prepareLightningPayment(addressOrInvoice, amountSats)
+                if ('payRequest' in prepareResponse) {
+                    return prepareResponse.feeSats;
+                }
+                else if (prepareResponse.paymentMethod.type == 'bolt11Invoice') {
+                    const lnFees = prepareResponse.paymentMethod.lightningFeeSats;
+                    if (prepareResponse.paymentMethod.sparkTransferFeeSats) {
+                        return lnFees + prepareResponse.paymentMethod.sparkTransferFeeSats;
+                    }
+                    return lnFees;
+                }
+                return 0;
+            }
+            default:
+                return 0;
+        }
+    }
+
+    private async prepareLightningPayment(invoice: string, amountSats?: number): Promise<PrepareSendPaymentResponse | PrepareLnurlPayResponse> {
+        const parsedInvoice = await this.sdk.parse(invoice)
+        switch (parsedInvoice.type) {
+            case 'bolt11Invoice':
+                if (parsedInvoice.amountMsat === undefined && amountSats === undefined) {
+                    throw new Error('Amount must be specified for invoices without an amount')
+                }
+
+                const prepareResponse = await this.sdk.prepareSendPayment({
+                    paymentRequest: invoice,
+                    amount: amountSats ? BigInt(amountSats) : undefined
+                })
+
+                return prepareResponse
+            case 'bolt12Invoice':
+                const prepareBolt12Response = await this.sdk.prepareSendPayment({
+                    paymentRequest: invoice,
+                    amount: amountSats ? BigInt(amountSats) : undefined
+                })
+                return prepareBolt12Response
+            case 'lightningAddress':
+                if (amountSats === undefined) {
+                    throw new Error('Amount must be specified for Lightning Address payments')
+                }
+
+                if (parsedInvoice.payRequest.minSendable !== undefined && amountSats < parsedInvoice.payRequest.minSendable) {
+                    throw new Error(`Amount is below the minimum amount of ${parsedInvoice.payRequest.minSendable} sats`)
+                }
+                if (parsedInvoice.payRequest.maxSendable !== undefined && amountSats > parsedInvoice.payRequest.maxSendable) {
+                    throw new Error(`Amount is above the maximum amount of ${parsedInvoice.payRequest.maxSendable} sats`)
+                }
+
+                const prepareResponseLnAddress = await this.sdk.prepareLnurlPay({
+                    amountSats,
+                    payRequest: parsedInvoice.payRequest
+                })
+
+                return prepareResponseLnAddress
+            case 'lnurlPay':
+                // LNURL pay requests may have a min and max amount, but we still require an amount to be specified
+                if (amountSats === undefined) {
+                    throw new Error('Amount must be specified for LNURL pay requests')
+                }
+
+                if (parsedInvoice.minSendable !== undefined && amountSats < parsedInvoice.minSendable) {
+                    throw new Error(`Amount is below the minimum amount of ${parsedInvoice.minSendable} sats`)
+                }
+                if (parsedInvoice.maxSendable !== undefined && amountSats > parsedInvoice.maxSendable) {
+                    throw new Error(`Amount is above the maximum amount of ${parsedInvoice.maxSendable} sats`)
+                }
+
+                const prepareResponseLnPay = await this.sdk.prepareLnurlPay({
+                    amountSats,
+                    payRequest: parsedInvoice
+                })
+
+                return prepareResponseLnPay
+            default:
+                throw new Error('Unsupported invoice type')
         }
     }
 
     async createSparkAddress(id: number): Promise<string> {
-        const sparkWallet = await this.builderSparkWalletFn(id)
-        await sparkWallet.setPrivacyEnabled(false)
-        return await sparkWallet.getSparkAddress()
+        let builder = await this.builderNewFn()
+        builder = builder.withKeySet({
+            keySetType: 'default',
+            useAddressIndex: false,
+            accountNumber: id
+        })
+        const sdk = await builder.build()
+        await sdk.updateUserSettings({
+            sparkPrivateModeEnabled: false
+        })
+        const response = await sdk.receivePayment({
+            paymentMethod: { type: 'sparkAddress' }
+        })
+        return response.paymentRequest
     }
 
-    async createBitcoinAddress(_id: number): Promise<string> {
-        return await this.wallet.getSingleUseDepositAddress()
+    async createBitcoinAddress(id: number): Promise<string> {
+        let builder = await this.builderNewFn()
+        builder = builder.withKeySet({
+            keySetType: 'default',
+            useAddressIndex: false,
+            accountNumber: id
+        })
+        const sdk = await builder.build()
+        const response = await sdk.receivePayment({
+            paymentMethod: { type: 'bitcoinAddress' }
+        })
+        return response.paymentRequest
     }
 
     async listPayments(): Promise<SparkPayment[]> {
-        const PAGE_SIZE = 20;
-        let offset = 0;
-        let allTransfers = [];
-
-        while (true) {
-            const { transfers } = await this.wallet.getTransfers(PAGE_SIZE, offset);
-            allTransfers.push(...transfers);
-
-            if (transfers.length < PAGE_SIZE) break; // No more pages
-            offset += PAGE_SIZE;
-        }
-
-        return allTransfers.map(t => {
+        const response = await this.sdk.listPayments({})
+        return response.payments.map(p => {
             return {
-                id: t.id,
-                amount: BigInt(t.totalValue),
-                direction: t.transferDirection,
-                timestamp: (t.createdTime as Date).getTime()
-            } as SparkPayment
+                id: p.id,
+                amount: p.amount,
+                timestamp: p.timestamp,
+                direction: p.paymentType == 'send' ? 'OUTGOING' : 'INCOMING'
+            }
         })
     }
 
     async listUnclaimDeposits(): Promise<Deposit[]> {
-        const PAGE_SIZE = 20;
-        let offset = 0;
-        let allUTXOs = [];
-        const depositAddress = await this.wallet.getStaticDepositAddress()
-        while (true) {
-            const utxos = await this.wallet.getUtxosForDepositAddress(
-                depositAddress,
-                PAGE_SIZE,
-                offset,
-                true
-            );
-            allUTXOs.push(...utxos);
-
-            if (utxos.length < PAGE_SIZE) break; // No more pages
-            offset += PAGE_SIZE;
-        }
-
-        return allUTXOs as Deposit[]
+        const unclaimDeposits = await this.sdk.listUnclaimedDeposits({})
+        return unclaimDeposits.deposits as Deposit[]
     }
 
-    async claimDeposit(txId: string, _vout: number): Promise<void> {
-        try {
-            // For single used deposit
-            await this.wallet.claimDeposit(txId);
-        }
-        catch (e) { }
+    async claimDeposit(txId: string, vout: number): Promise<void> {
+        await this.sdk.claimDeposit({ txid: txId, vout })
+    }
 
-        try {
-            const quote = await this.wallet.getClaimStaticDepositQuote(txId);
-            await this.wallet.claimStaticDeposit({
-                transactionId: txId,
-                creditAmountSats: quote.creditAmountSats,
-                sspSignature: quote.signature,
-            });
+    async validAddress(address: string, method?: 'spark' | 'lightning' | 'bitcoin'): Promise<boolean> {
+        const parsed = await this.sdk.parse(address)
+        switch (method) {
+            case 'bitcoin':
+                return parsed.type == 'bitcoinAddress'
+            case 'spark':
+                return parsed.type == 'sparkAddress'
+            case 'lightning':
+                return parsed.type == 'bolt11Invoice' || parsed.type == 'bolt12Invoice' || parsed.type == 'lnurlPay' || parsed.type == 'lightningAddress'
+            default:
+                return false
         }
-        catch (e) { }
     }
 
     getNostrPublicKey(): string {
@@ -428,44 +721,3 @@ export class BareSparkWallet implements Wallet {
         return finalizeEvent(event, hexToBytes(this.nostrKeypair.priv))
     }
 }
-
-
-const checkPaymentStatus = async (paymentId: string, wallet: SparkWallet) => {
-  const paymentStatus = await wallet.getLightningSendRequest(paymentId);
-  if (!paymentStatus) {
-    throw new Error("cannot check lightning payment status")
-  }
-  switch (paymentStatus.status) {
-    case "TRANSFER_COMPLETED":
-      console.log("Lightning payment completed!");
-      return true;
-    case "TRANSFER_FAILED":
-      console.log("Lightning payment failed");
-      return false;
-    default:
-      console.log("Lightning payment pending...");
-      setTimeout(() => checkPaymentStatus(paymentId, wallet), 5000);
-      return false;
-  }
-};
-
-// const checkWithdrawalStatus = async (withdrawalId: string, wallet: SparkWallet) => {
-//   const exitRequest = await wallet.getCoopExitRequest(withdrawalId);
-//   if (!exitRequest) {
-//     throw new Error("cannot get exit request")
-//   }
-
-//   switch (exitRequest.status) {
-//     case "SUCCEEDED":
-//       console.log("Withdrawal completed!");
-//       console.log("On-chain txid:", exitRequest.coopExitTxid);
-//       return true;
-//     case "FAILED":
-//       console.log("Withdrawal failed");
-//       return false;
-//     default:
-//       console.log("Withdrawal pending...");
-//       setTimeout(() => checkWithdrawalStatus(withdrawalId, wallet), 30000);
-//       return false;
-//   }
-// };

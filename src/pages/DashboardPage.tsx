@@ -21,10 +21,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { RevenueChart } from "@/components/app/revenue-chart"
 import { fetchPaymentsRequest, getNotifSettings, listReceipts, publishPaymentRequest, publishReceiptMetadata, removePaymentRequest } from "@/lib/nostr"
 import { Spinner } from "@/components/ui/spinner"
-import { getStatus } from "@/lib/api"
+import { getSettings, getStatus, type Settings } from "@/lib/api"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useNavigate } from "react-router"
 import { IconMessageDollar } from "@tabler/icons-react"
+import pLimit from 'p-limit';
 
 export const DashboardPage = () => {
     const { wallet } = useWallet()
@@ -38,12 +39,16 @@ export const DashboardPage = () => {
     const [issuanceStats, setIssuanceStats] = useState<TokenStats | undefined>(undefined)
     const [tokenMetadata, setTokenMetadata] = useState<TokenMetadata | undefined>(undefined)
     const [addresses, setAddresses] = useState<{ btc: string, ln: string, spark: string } | null>(null)
-    const [price, _setPrice] = useState(0)
+    const [price, setPrice] = useState(0)
     const [paymentRequests, setPaymentRequests] = useState<Payment[]>([])
     const [receipts, setReceipts] = useState<Receipt[]>([])
     const [walletHistory, setWalletHistory] = useState<SparkPayment[]>([])
     const [errorSpark, setErrorSpark] = useState<string | undefined>(undefined)
     const [notifSettingAlert, setNotifSettingAlert] = useState(false)
+    const [walletLoading, setWalletLoading] = useState(true)
+    const [paymentRequestLoading, setPaymentRequestLoading] = useState(true)
+    const [walletHistoryLoading, setWalletHistoryLoading] = useState(true)
+    const [settings, setSettings] = useState<Settings | undefined>(undefined)
 
     const currency = localStorage.getItem('BITLASSO_CURRENCY') || 'USD'
 
@@ -65,71 +70,83 @@ export const DashboardPage = () => {
 
     const claimPaymentRequestBalances = async (sparkAddress: string) => {
         if (!wallet) return
-        let claimPromises = []
+        let claimPromises: Promise<void>[] = []
         const lastNonce = Number(localStorage.getItem('BITLASSO_PAYMENT_NONCE') || '0')
+        const limit = pLimit(2);
+
         for (let i = 2; i <= lastNonce; i++) {
-            claimPromises.push((async () => {
+            claimPromises.push(limit(async () => {
                 const requestSdk = await wallet.withAccountNumber(i)
+
                 const unclaimedBitcoinDeposits = await requestSdk.listUnclaimDeposits()
-                
-                await Promise.all(unclaimedBitcoinDeposits.map(d => 
+
+                await Promise.all(unclaimedBitcoinDeposits.map(d =>
                     requestSdk.claimDeposit(d.txid, d.vout)
                 ))
 
                 const balance = await requestSdk.getBalance()
                 const satsBalance = Number(balance.balance)
-                
+
                 if (satsBalance > 0) {
                     console.log('claiming from sub account', i, satsBalance / 100_000_000)
                     await requestSdk.sendSparkPayment(sparkAddress, satsBalance)
                 }
-            })())
+            }))
         }
 
-        await Promise.allSettled(claimPromises)
+        await Promise.all(claimPromises);
     }
 
     const fetchData = async (wallet: Wallet) => {
-        const [btcAddresses, sparkAddress, lnAddress, metadata, , , payments] = await Promise.all([
-            wallet.getBitcoinAddress(),
-            wallet.getSparkAddress(),
-            wallet.getLightningAddress(),
-            wallet.getTokenMetadata().catch(() => null),
-            refreshPaymentRequests(),
-            refreshReceipts(),
-            wallet.listPayments()
-        ])
+        const _settings = await getSettings()
+        setSettings(_settings)
 
-        const addresses = {
-            btc: btcAddresses,
-            ln: lnAddress,
-            spark: sparkAddress
-        }
+        setTimeout(async () => {
+            const [btc, spark, ln] = await Promise.all([
+                wallet.getBitcoinAddress(),
+                wallet.getSparkAddress(),
+                wallet.getLightningAddress(),
+            ])
+            setAddresses({ btc, spark, ln })
+            setWalletLoading(false)
+            // setTimeout(() => claimPaymentRequestBalances(spark))
+        })
 
-        setAddresses(addresses)
-        setWalletHistory(payments)
-        await updateBalance(wallet)
+        setTimeout(async () => {
+            await refreshPaymentRequests()
+            await refreshReceipts()
+            setPaymentRequestLoading(false)
+        })
 
+        setTimeout(async () => {
+            await updateBalance(wallet)
+            setTimeout(async () => {
+                const payments = await wallet.listPayments()
+                setWalletHistory(payments)
+                setWalletHistoryLoading(false)
+            })
+        })
+
+        const metadata = await wallet.getTokenMetadata().catch(() => null)
         if (metadata) {
             setTokenMetadata(metadata)
-            await refreshIssuanceStats(wallet, metadata)
+            setTimeout(async () => await refreshIssuanceStats(wallet, metadata))
         }
 
-        setTimeout(() => claimPaymentRequestBalances(sparkAddress), 100)
         setTimeout(async () => {
-            // const prices = await wallet.fetchPrices()
-            // const p = prices.find(p => p.currency.toUpperCase() == currency.toUpperCase())
-            // if (p) {
-            //     setPrice(p.value)
-            // }
+            const prices = await wallet.fetchPrices()
+            const p = prices.find(p => p.currency.toUpperCase() == currency.toUpperCase())
+            if (p) {
+                setPrice(p.value)
+            }
         }, 0)
 
         setInterval(async () => {
-            // const prices = await wallet.fetchPrices()
-            // const p = prices.find(p => p.currency.toUpperCase() == currency.toUpperCase())
-            // if (p) {
-            //     setPrice(p.value)
-            // }
+            const prices = await wallet.fetchPrices()
+            const p = prices.find(p => p.currency.toUpperCase() == currency.toUpperCase())
+            if (p) {
+                setPrice(p.value)
+            }
         }, 60_000)
     }
 
@@ -147,6 +164,17 @@ export const DashboardPage = () => {
                     })
                     await fetchData(wallet)
                     setInitializing(false)
+
+                    wallet.on('synced', async () => {
+                        await updateBalance(wallet)
+
+                        const payments = await wallet.listPayments()
+                        setWalletHistory(payments)
+
+                        if (tokenMetadata) {
+                            refreshIssuanceStats(wallet, tokenMetadata)
+                        }
+                    })
                 }
                 else {
                     setErrorSpark(`Spark status is not operational. Please retry in few moments. We are sorry for this inconvenience.`)
@@ -227,10 +255,38 @@ export const DashboardPage = () => {
     }
 
     const handlePaymentRequest = async (data: PaymentRequestData) => {
-        if (!wallet || !tokenMetadata) return
+        if (!wallet || !tokenMetadata || !settings || !tokenBalances) return
 
         const asset = { name: "Bitcoin", symbol: "BTC", max: 0 }
-        await send(wallet, asset, data.feeBTC, 'spark1pgssx7lqr7akm7ycnn9hxux0mq7q8thvht3dec4ctuwvcht9pdj3qed82tfs7p', "spark")
+        if (data.feeBTC) {
+            await send(wallet, asset, data.feeBTC, settings.address, "spark")
+        }
+        else {
+            const burnToken = tokenBalances.get(settings.tokenAddress)
+            if (!burnToken) {
+                toast.error('No credits available to activate payment request')
+                return
+            }
+
+            const creditsToBurn = 1
+            const decimalsFactor = BigInt(10) ** BigInt(burnToken.tokenMetadata.decimals)
+            const burnAmount = BigInt(creditsToBurn) * decimalsFactor
+
+            await wallet.burnTokens(burnAmount, burnToken.tokenMetadata.identifier)
+
+            setTokenBalances((prev) => {
+                if (!prev) return prev
+                const updated = new Map(prev)
+                const entry = updated.get(burnToken.tokenMetadata.identifier)
+                if (!entry) return prev
+
+                updated.set(burnToken.tokenMetadata.identifier, {
+                    ...entry,
+                    balance: entry.balance - burnAmount
+                })
+                return updated
+            })
+        }
 
         const nonce = Number(localStorage.getItem('BITLASSO_PAYMENT_NONCE') || '0') + 1
         await publishPaymentRequest(wallet, nonce, data.amount, tokenMetadata.identifier, data.discountRate, data.description)
@@ -280,7 +336,7 @@ export const DashboardPage = () => {
         await refreshReceipts()
     }
 
-    const tokensData = useMemo(() => {
+    const tokensData: { id: string, name: string, symbol: string, amount: number}[] = useMemo(() => {
         const tokensData: any[] = []
         if (tokenBalances) {
             for (let [_, val] of tokenBalances) {
@@ -309,6 +365,13 @@ export const DashboardPage = () => {
     const pendingPayments = useMemo(() => {
         return paymentRequests.filter(p => p.settleTx === undefined).length
     }, [paymentRequests])
+
+    const creditBalance = useMemo(() => {
+        if (!settings) return 0
+        const token = tokensData.find(t => t.id == settings?.tokenAddress)
+        if (!token) return 0
+        return token.amount
+    }, [tokensData])
 
     return (
         <div className="flex flex-col w-full gap-10">
@@ -344,127 +407,78 @@ export const DashboardPage = () => {
                 <h1 className="text-4xl font-serif font-normal text-foreground flex items-center">Dashboard {initializing && <Spinner className="ml-2 text-primary" />}</h1>
                 <h2 className="text-1xl font-light text-muted-foreground">Turn paid work into Bitcoin-anchored receipts that reward repeat clients.</h2>
             </div>
-            {initializing &&
-                <div className="grid lg:grid-cols-3 gap-2">
-                    <Card className="col-span-1">
-                        <CardHeader className="font-mono uppercase tracking-wider text-gray-500 text-xs flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                                <span className="bg-primary/10 p-3 rounded-full items-center"><Zap className="h-4 w-4 text-primary" /></span>
-                                Total revenue
-                            </div>
-                        </CardHeader>
-                        <CardContent className="flex flex-col gap-5">
-                            <Skeleton className="h-10 w-1/4" />
-                            <Skeleton className="h-50 w-full" />
-                        </CardContent>
-                    </Card>
-                    <div className="flex flex-col gap-2 col-span-1">
-                        <Card className="flex-1">
-                            <CardHeader className="font-mono uppercase tracking-wider text-gray-500 text-xs flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                    <span className="bg-primary/10 p-3 rounded-full items-center"><FileText className="h-4 w-4 text-primary" /></span>
-                                    Activated payments
-                                </div>
-                            </CardHeader>
-                            <CardContent className="flex flex-col gap-2">
-                                <Skeleton className="h-10 w-1/6" />
-                                <Skeleton className="h-10 w-1/4" />
-                            </CardContent>
-                        </Card>
-                        <Card className="flex-1">
-                            <CardHeader className="font-mono uppercase tracking-wider text-gray-500 text-xs flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                    <div className="bg-primary/10 p-3 rounded-full items-center"><Coins className="h-4 w-4 text-primary" /></div>
-                                    Minted credits
-                                </div>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <div className="flex gap-1 items-center">
-                                            <Button variant="ghost" className="h-8 w-8 p-0 rounded-full">
-                                                <MoreHorizontal className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </CardHeader>
-                            <CardContent className="flex flex-col gap-2">
-                                <Skeleton className="h-10 w-1/4" />
-                                <Skeleton className="h-10 w-1/4" />
-                            </CardContent>
-                        </Card>
-                    </div>
-                    <div className="flex flex-col gap-2 col-span-1">
-                        <div className="flex-1">
-                            <Card className="lg:col-span-1 h-full">
-                                <CardHeader className="font-mono uppercase tracking-wider text-gray-500 text-xs flex justify-between items-center">
-                                    <div className="flex gap-2 items-center">
-                                        <div className="bg-primary/10 p-3 rounded-full items-center"><Wallet2 className="h-4 w-4 text-primary" /></div>
-                                        Wallet
-                                    </div>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <div className="flex gap-1 items-center">
-                                                <Button variant="ghost" className="h-8 w-8 p-0 rounded-full">
-                                                    <MoreHorizontal className="h-4 w-4" />
-                                                </Button>
-                                                <span className="sr-only">Open menu</span>
-                                            </div>
-                                        </DropdownMenuTrigger>
-                                    </DropdownMenu>
-                                </CardHeader>
-                                <CardContent className="flex flex-col gap-5">
-                                    <div className="flex flex-col gap-2">
-                                        <Skeleton className="h-9 w-1/5" />
-                                        <Skeleton className="h-5 w-1/4" />
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <Skeleton className="h-10 w-10" />
-                                        <Skeleton className="h-10 w-10" />
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        <Skeleton className="h-50 w-full" />
-                                    </div>
-                                </CardContent>
-                            </Card>
+            <div className="grid lg:grid-cols-3 gap-2">
+                <Card className="col-span-1">
+                    <CardHeader className="font-mono uppercase tracking-wider text-gray-500 text-xs flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                            <span className="bg-primary/10 p-3 rounded-full items-center"><Zap className="h-4 w-4 text-primary" /></span>
+                            Total revenue
                         </div>
-                    </div>
-                </div>
-            }
-            {!initializing && tokenMetadata &&
-                <div className="grid lg:grid-cols-3 gap-2">
-                    <Card className="col-span-1">
+                    </CardHeader>
+                    {paymentRequestLoading && <CardContent className="flex flex-col gap-5">
+                        <Skeleton className="h-10 w-1/4" />
+                        <Skeleton className="h-50 w-full" />
+                    </CardContent>}
+                    {!paymentRequestLoading && <CardContent className="flex flex-col gap-10">
+                        <span className="text-2xl font-semibold">{Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(revenue)}</span>
+                        <RevenueChart chartData={revenuePayments} />
+                    </CardContent>}
+                </Card>
+                <div className="flex flex-col gap-2 col-span-1">
+                    <Card className="flex-1">
                         <CardHeader className="font-mono uppercase tracking-wider text-gray-500 text-xs flex justify-between items-center">
                             <div className="flex items-center gap-2">
-                                <span className="bg-primary/10 p-3 rounded-full items-center"><Zap className="h-4 w-4 text-primary" /></span>
-                                Total revenue
+                                <span className="bg-primary/10 p-3 rounded-full items-center"><FileText className="h-4 w-4 text-primary" /></span>
+                                Activated payments
                             </div>
                         </CardHeader>
-                        <CardContent className="flex flex-col gap-10">
-                            <span className="text-2xl font-semibold">{Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(revenue)}</span>
-                            <RevenueChart chartData={revenuePayments} />
-                        </CardContent>
+                        {paymentRequestLoading && <CardContent className="flex flex-col gap-2">
+                            <Skeleton className="h-10 w-1/6" />
+                            <Skeleton className="h-10 w-1/4" />
+                        </CardContent>}
+                        {!paymentRequestLoading && <CardContent className="flex flex-col gap-2">
+                            <span className="text-2xl font-semibold">{paymentRequests.length}</span>
+                            <span className="text-xs text-muted-foreground">{pendingPayments} pendings</span>
+                        </CardContent>}
                     </Card>
-                    <div className="flex flex-col gap-2 col-span-1">
-                        <Card className="flex-1">
-                            <CardHeader className="font-mono uppercase tracking-wider text-gray-500 text-xs flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                    <span className="bg-primary/10 p-3 rounded-full items-center"><FileText className="h-4 w-4 text-primary" /></span>
-                                    Activated payments
-                                </div>
-                            </CardHeader>
+                    <Card className="flex-1">
+                        <CardHeader className="font-mono uppercase tracking-wider text-gray-500 text-xs flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-primary/10 p-3 rounded-full items-center"><Coins className="h-4 w-4 text-primary" /></div>
+                                Minted credits
+                            </div>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <div className="flex gap-1 items-center">
+                                        <Button variant="ghost" className="h-8 w-8 p-0 rounded-full">
+                                            <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    {tokenMetadata && <DropdownMenuItem onClick={() => window.open(`https://sparkscan.io/token/${tokenMetadata.identifier}`, '_blank')}>View details on explorer<ExternalLink /></DropdownMenuItem>}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </CardHeader>
+                        {!tokenMetadata && !issuanceStats && <CardContent className="flex flex-col gap-2">
+                            <Skeleton className="h-10 w-1/4" />
+                            <Skeleton className="h-10 w-1/4" />
+                        </CardContent>}
+                        {issuanceStats && tokenMetadata &&
                             <CardContent className="flex flex-col gap-2">
-                                <span className="text-2xl font-semibold">{paymentRequests.length}</span>
-                                <span className="text-xs text-muted-foreground">{pendingPayments} pendings</span>
+                                <span className="text-2xl font-semibold">{issuanceStats.mints} {tokenMetadata.symbol}</span>
+                                <span className="text-muted-foreground text-xs">{issuanceStats.burns} redeemed</span>
                             </CardContent>
-                        </Card>
-                        <Card className="flex-1">
+                        }
+                    </Card>
+                </div>
+                <div className="flex flex-col gap-2 col-span-1">
+                    <div className="flex-1">
+                        {walletLoading && <Card className="lg:col-span-1 h-full">
                             <CardHeader className="font-mono uppercase tracking-wider text-gray-500 text-xs flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                    <div className="bg-primary/10 p-3 rounded-full items-center"><Coins className="h-4 w-4 text-primary" /></div>
-                                    Minted credits
+                                <div className="flex gap-2 items-center">
+                                    <div className="bg-primary/10 p-3 rounded-full items-center"><Wallet2 className="h-4 w-4 text-primary" /></div>
+                                    Wallet
                                 </div>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -475,36 +489,39 @@ export const DashboardPage = () => {
                                             <span className="sr-only">Open menu</span>
                                         </div>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => window.open(`https://sparkscan.io/token/${tokenMetadata.identifier}`, '_blank')}>View details on explorer<ExternalLink /></DropdownMenuItem>
-                                    </DropdownMenuContent>
                                 </DropdownMenu>
                             </CardHeader>
-                            {issuanceStats &&
-                                <CardContent className="flex flex-col gap-2">
-                                    <span className="text-2xl font-semibold">{issuanceStats.mints} {tokenMetadata.symbol}</span>
-                                    <span className="text-muted-foreground text-xs">{issuanceStats.burns} redeemed</span>
-                                </CardContent>
-                            }
+
+                            <CardContent className="flex flex-col gap-5">
+                                <div className="flex flex-col gap-2">
+                                    <Skeleton className="h-9 w-1/5" />
+                                    <Skeleton className="h-5 w-1/4" />
+                                </div>
+                                <div className="flex gap-2">
+                                    <Skeleton className="h-10 w-10" />
+                                    <Skeleton className="h-10 w-10" />
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <Skeleton className="h-50 w-full" />
+                                </div>
+                            </CardContent>
                         </Card>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                        <div className="flex-1">
-                            {wallet && addresses &&
-                                <WalletCard
-                                    addresses={addresses}
-                                    btcBalance={Number(btcBalance) / (10 ** 8)}
-                                    tokens={tokensData}
-                                    price={price}
-                                    currency={currency}
-                                    onSend={handleSend}
-                                    payments={walletHistory}
-                                    wallet={wallet} />}
-                        </div>
+                        }
+                        {wallet && addresses &&
+                            <WalletCard
+                                addresses={addresses}
+                                btcBalance={Number(btcBalance) / (10 ** 8)}
+                                tokens={tokensData}
+                                price={price}
+                                currency={currency}
+                                onSend={handleSend}
+                                payments={walletHistory}
+                                wallet={wallet}
+                                walletHistoryLoading={walletHistoryLoading} />}
+
                     </div>
                 </div>
-            }
-
+            </div>
             <div className="grid lg:grid-cols-2 gap-2">
                 {!initializing && !tokenMetadata &&
                     <Card className="flex flex-col justify-between lg:col-span-1">
@@ -553,8 +570,8 @@ export const DashboardPage = () => {
                             <div className="flex flex-col lg:flex-row lg:justify-between lg:w-full gap-2">
                                 <p className="border-primary/40 flex gap-2 font-serif font-light text-2xl">Payment requests</p>
                                 {initializing && <Skeleton className="h-10 w-40" />}
-                                {!initializing && <CardAction className='w-full lg:w-auto'>
-                                    <PaymentRequestForm onSubmit={handlePaymentRequest} price={price} />
+                                {!initializing && settings && <CardAction className='w-full lg:w-auto'>
+                                    <PaymentRequestForm settings={settings} onSubmit={handlePaymentRequest} price={price} creditBalance={creditBalance} />
                                 </CardAction>}
                             </div>
                         </CardTitle>

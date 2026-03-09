@@ -87,7 +87,7 @@ export const PassphraseForm: React.FC<Props> = ({ onSubmit, onBack, loading = fa
             </div>
             <FieldGroup>
                 <FieldLabel>Enter your passphrase</FieldLabel>
-                <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
                     {mnemonic.map((_word, index) => (
                         <Field key={index}>
                             <Input
