@@ -55,7 +55,7 @@ export function SiteHeader() {
       <div className="flex gap-10">
         <div className='font-serif tracking-tighter text-foreground flex items-center'>
           <p className="flex gap-2 items-end">
-            <a className="text-4xl flex items-center gap-2" href='#'>
+            <a className="text-4xl flex items-center gap-2" href='#/app'>
               <img src={LogoPng} className="h-10" />
               <span><span className="text-primary">bit</span>lasso</span>
             </a>
