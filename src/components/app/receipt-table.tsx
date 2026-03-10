@@ -2,11 +2,13 @@ import { type ColumnDef } from "@tanstack/react-table"
 
 import { DataTable } from "@/components/ui/data-table"
 import React, { useCallback, useState } from "react"
-import { ExternalLink, MoreHorizontal } from "lucide-react"
+import { Copy, ExternalLink, MoreHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ReceiptMetadataForm, type ReceiptMetadataData } from "./receipt-metadata-form"
 import type { Payment } from "./payment-table"
+import { toast } from "sonner"
+import { shortenAddress } from "@/lib/utils"
 
 export type Receipt = {
     date: Date
@@ -38,35 +40,32 @@ const getColumns = (openMetadataModalFn: (metadata: ReceiptMetadataData) => void
                 return row.original.description || "N/A"
             }
         },
-        // {
-        //     accessorKey: "recipient",
-        //     header: "Recipient",
-        //     cell: ({ row }) => {
-        //         const recipient: string | null = row.getValue("recipient")
-        //         if (recipient) {
-        //             const { name, address } = JSON.parse(recipient)
+        {
+            accessorKey: "recipient",
+            header: "Recipient",
+            cell: ({ row }) => {
+                const recipient = row.original.recipient
+                if (recipient) {
+                    const copyWallet = () => {
+                        if (!recipient) return
+                        navigator.clipboard.writeText(recipient)
+                        const toastId = toast.info('Wallet address copied into the clipboard')
+                        setTimeout(() => {
+                            toast.dismiss(toastId)
+                        }, 2000)
+                    }
 
-        //             const copyWallet = () => {
-        //                 if (!address) return
-        //                 navigator.clipboard.writeText(address)
-        //                 const toastId = toast.info('Wallet address copied into the clipboard')
-        //                 setTimeout(() => {
-        //                     toast.dismiss(toastId)
-        //                 }, 2000)
-        //             }
-
-        //             return (
-        //                 <div className="flex flex-col gap-1">
-        //                     <p>{name}</p>
-        //                     {address && <p className="text-xs text-gray-500 flex items-center gap-2">
-        //                         {shortenAddress(address)}
-        //                         <Copy className="text-xs w-4" onClick={copyWallet} />
-        //                     </p>}
-        //                 </div>
-        //             )
-        //         }
-        //     }
-        // },
+                    return (
+                        <div className="flex flex-col gap-1">
+                            {recipient && <p className="text-xs text-gray-500 flex items-center gap-2">
+                                {shortenAddress(recipient)}
+                                <Copy className="text-xs w-4" onClick={copyWallet} />
+                            </p>}
+                        </div>
+                    )
+                }
+            }
+        },
         {
             accessorKey: "paymentId",
             header: "Payment",
@@ -89,11 +88,10 @@ const getColumns = (openMetadataModalFn: (metadata: ReceiptMetadataData) => void
                 const tx: string = row.original.transaction
 
                 let metadata: ReceiptMetadataData = { transactionId: tx, description: row.original.description, paymentId: row.original.paymentId }
-                // if (row.original.recipient) {
-                //     const { name, address } = JSON.parse(row.original.recipient)
-                //     metadata.recipientName = name
-                //     metadata.recipientAddress = address
-                // }
+                if (row.original.recipient) {
+                    const address = row.original.recipient
+                    metadata.recipientAddress = address
+                }
                 return (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -122,7 +120,7 @@ const getColumns = (openMetadataModalFn: (metadata: ReceiptMetadataData) => void
 export const ReceiptTable: React.FC<{ receipts: Receipt[], paymentRequests: Payment[], onMetadataChange: (modalData: ReceiptMetadataData) => Promise<void> }> = ({ receipts, paymentRequests, onMetadataChange }) => {
 
     const [openMetadataModal, setOpenMetadataModel] = useState(false)
-    const [metadata, setMetadata] = useState<ReceiptMetadataData>({ transactionId: '', description: '', recipientName: '', recipientAddress: undefined, paymentId: undefined })
+    const [metadata, setMetadata] = useState<ReceiptMetadataData>({ transactionId: '', description: '', recipientAddress: undefined, paymentId: undefined })
 
     const showMetadataModal = useCallback((metadata: ReceiptMetadataData) => {
         setMetadata(metadata)

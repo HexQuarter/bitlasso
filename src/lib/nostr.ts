@@ -85,20 +85,6 @@ export const getNotifSettingsByPublicKey = async (publicKey: string): Promise<No
     return undefined
 }
 
-export const removePaymentRequest = async (wallet: Wallet, id: string) => {
-    const event = {
-        kind: 5,
-        content: '',
-        pubkey: wallet.getNostrPublicKey(),
-        created_at: Math.floor(Date.now() / 1000),
-        tags: [
-            ["e", id]
-        ]
-    }
-    const signedEvent = wallet.signNostrEvent(event)
-    await pool.publish(RELAYS, signedEvent)
-}
-
 export const fetchPaymentsRequest = async (wallet: Wallet): Promise<Payment[]> => {
     const events = await pool.querySync(RELAYS, {
         kinds: [EventKind.PAYMENT_REQ],

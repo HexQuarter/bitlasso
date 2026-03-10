@@ -18,10 +18,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import type { Payment } from "./payment-table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useWallet } from "@/hooks/use-wallet"
 
 export type IssueReceiptData = {
     description?: string
-    recipientName?: string
     recipientAddress?: string
     paymentId?: string
     mintableTokens: number
@@ -38,13 +38,14 @@ type Props = {
 }
 
 export const IssueReceiptForm: React.FC<Props> = ({ onSubmit, paymentRequests, buttonText = 'New receipt', buttonVariant = 'outline', amount, description, paymentId }) => {
+    const { wallet } = useWallet()
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
 
     const [_amount, setAmount] = useState(amount || 0)
     const [_description, setDescription] = useState(description || "")
-    const [recipientName, _setRecipientName] = useState("")
-    const [recipientAddress, _setRecipientAddress] = useState("")
+    const [recipientAddress, setRecipientAddress] = useState("")
+    const [recipientError, setRecipientError] = useState<undefined | string>(undefined)
     const [mintableTokens, setMintableTokens] = useState(0)
     const [_paymentId, setPaymentId] = useState(paymentId || undefined)
 
@@ -64,13 +65,36 @@ export const IssueReceiptForm: React.FC<Props> = ({ onSubmit, paymentRequests, b
         setAmount(amount)
     }
 
+    const handleRecipientAddressChange = async (r: string) => {
+        if (!wallet) return
+
+        setTimeout(async () => {
+            setRecipientError(undefined)
+            if (r == "") {
+                setRecipientAddress("")
+                return
+            }
+            try {
+                const validAddress = await wallet.validAddress(r, 'spark')
+                if (!validAddress) {
+                    setRecipientError('Invalid recipient. Please make sure it is a valid Spark address')
+                    return
+                }
+                setRecipientAddress(r)
+            }
+            catch (e) {
+                setRecipientError('Invalid recipient. Please make sure it is a valid Spark address')
+            }
+        }, 100)
+    }
+
+
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault()
         setLoading(true)
         await onSubmit({
             mintableTokens,
             description: _description,
-            recipientName,
             recipientAddress,
             paymentId: _paymentId
         })
@@ -118,16 +142,16 @@ export const IssueReceiptForm: React.FC<Props> = ({ onSubmit, paymentRequests, b
                                 <Textarea id="description" onChange={(e) => setDescription(e.target.value)} placeholder="Frontend delivery for Project Alpha" value={_description} />
                             </CardContent>
                         </Card>
-                        {/* <Card className="grid gap-3">
+                        <Card className="grid gap-3">
                             <CardHeader>
                                 <CardTitle className="font-semibold text-black">Recipient</CardTitle>
-                                <CardDescription className="text-xs">Who should receive this receipt?</CardDescription>
+                                <CardDescription className="text-xs">Who should receive this receipt ?</CardDescription>
                             </CardHeader>
                             <CardContent className="flex flex-col gap-2">
-                                <Input id="client" type="text" placeholder="Name" onChange={(e) => setRecipientName(e.target.value)} value={recipientName} />
-                                <Input id="address" type="text" placeholder="Spark Wallet address" onChange={(e) => setRecipientAddress(e.target.value)} value={recipientAddress} />
+                                <Input id="address" type="text" placeholder="Spark Wallet address" onChange={(e) => handleRecipientAddressChange(e.target.value)} />
+                                {recipientError && <p className="text-primary text-xs">{recipientError}</p>}
                             </CardContent>
-                        </Card> */}
+                        </Card>
                         <Card className="grid gap-3">
                             <CardHeader>
                                 <CardTitle className="font-semibold text-black">Payment</CardTitle>

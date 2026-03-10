@@ -19,7 +19,7 @@ import { AlertTriangle, AlertTriangleIcon, Coins, ExternalLink, FileText, MoreHo
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { RevenueChart } from "@/components/app/revenue-chart"
-import { fetchPaymentsRequest, getNotifSettings, listReceipts, publishReceiptMetadata, removePaymentRequest } from "@/lib/nostr"
+import { fetchPaymentsRequest, getNotifSettings, listReceipts, publishReceiptMetadata } from "@/lib/nostr"
 import { Spinner } from "@/components/ui/spinner"
 import { getSettings, getStatus, publishPaymentRequest, type Settings } from "@/lib/api"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -108,7 +108,7 @@ export const DashboardPage = () => {
             }
             setTokenMetadataLoading(false)
         }
-        catch(_e) {
+        catch (_e) {
             setTokenMetadataLoading(false)
         }
 
@@ -249,17 +249,23 @@ export const DashboardPage = () => {
             response?.id,
             data.mintableTokens,
             response.timestamp,
-            data.description || '',
-            JSON.stringify({ name: data.recipientName || '', address: data.recipientAddress || '' }),
+            data.description,
+            data.recipientAddress,
             data.paymentId
         )
+
+        if (data.recipientAddress && data.recipientAddress != '') {
+            const asset = { name: tokenMetadata!.name, symbol: tokenMetadata!.symbol, identifier: tokenMetadata!.identifier } as Asset
+            const id = await send(wallet, asset, data.mintableTokens, data.recipientAddress, 'spark')
+            console.log('Token transfered to recipient:', id)
+        }
 
         setReceipts((prevReceipts) => [
             {
                 date: response.timestamp,
                 amount: data.mintableTokens,
                 description: data.description,
-                recipient: JSON.stringify({ name: data.recipientName || '', address: data.recipientAddress || '' }),
+                recipient: data.recipientAddress,
                 paymentId: data.paymentId,
                 transaction: response.id
             },
@@ -310,13 +316,6 @@ export const DashboardPage = () => {
         toast.success('Payment request created successfully')
     }
 
-    const handleRemovePaymentRequest = async (id: string) => {
-        if (!wallet) return
-
-        await removePaymentRequest(wallet, id)
-        setPaymentRequests((prev) => prev.filter(r => r.id !== id))
-    }
-
     const handleClaimPaymentRequest = async (id: string) => {
         if (!addresses) return
 
@@ -338,13 +337,13 @@ export const DashboardPage = () => {
     const handleReceiptMetadataChange = async (data: ReceiptMetadataData) => {
         if (!wallet) return
 
-        const { amount } = receipts.find(r => r.transaction == data.transactionId) as Receipt
+        const { amount, recipient } = receipts.find(r => r.transaction == data.transactionId) as Receipt
         await publishReceiptMetadata(wallet,
             data.transactionId,
             amount,
             new Date(),
             data.description,
-            JSON.stringify({ name: data.recipientName, address: data.recipientAddress }),
+            recipient,
             data.paymentId
         )
 
@@ -651,7 +650,6 @@ export const DashboardPage = () => {
                                         nonce: r.nonce,
                                         settlementMode: r.settlementMode
                                     }))}
-                                    onRemove={handleRemovePaymentRequest}
                                     onClaim={handleClaimPaymentRequest}
                                     onDeriveReceipt={handleIssueReceipt}
                                     paymentRequests={paymentRequests}

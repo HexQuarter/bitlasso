@@ -11,7 +11,6 @@ import type { Payment } from "./payment-table"
 export type ReceiptMetadataData = {
     transactionId: string,
     description?: string
-    recipientName?: string
     recipientAddress?: string
     paymentId?: string
 }
@@ -28,8 +27,6 @@ export const ReceiptMetadataForm: React.FC<Props> = ({ metadata, onSubmit, onClo
     const [loading, setLoading] = useState(false)
 
     const [description, setDescription] = useState(metadata.description || '')
-    const [recipientName, _setRecipientName] = useState(metadata.recipientName || '')
-    const [recipientAddress, _setRecipientAddress] = useState(metadata.recipientAddress || '')
     const [paymentId, setPaymentId] = useState(metadata.paymentId || undefined)
 
     const handleSubmit = useCallback(async (e: FormEvent) => {
@@ -37,13 +34,11 @@ export const ReceiptMetadataForm: React.FC<Props> = ({ metadata, onSubmit, onClo
         setLoading(true)
         let newMetadata = metadata
         newMetadata.description = description
-        newMetadata.recipientAddress = recipientAddress
-        newMetadata.recipientName = recipientName
         newMetadata.paymentId = paymentId
         await onSubmit(newMetadata)
         setLoading(false)
         setOpen(false)
-    }, [metadata, description, recipientAddress, paymentId])
+    }, [metadata, description, paymentId])
 
     useEffect(() => {
         if (!open) onClose()
@@ -69,16 +64,6 @@ export const ReceiptMetadataForm: React.FC<Props> = ({ metadata, onSubmit, onClo
                                 <Textarea id="description" onChange={(e) => setDescription(e.target.value)} placeholder="Frontend delivery for Project Alpha" value={description} />
                             </CardContent>
                         </Card>
-                        {/* <Card className="grid gap-3">
-                            <CardHeader>
-                                <CardTitle className="font-semibold text-black">Recipient</CardTitle>
-                                <CardDescription className="text-xs">Who did receive this receipt?</CardDescription>
-                            </CardHeader>
-                            <CardContent className="flex flex-col gap-2">
-                                <Input id="client" type="text" placeholder="Name" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} />
-                                <Input id="address" type="text" placeholder="Spark Wallet address" value={recipientAddress} onChange={(e) => setRecipientAddress(e.target.value)} />
-                            </CardContent>
-                        </Card> */}
                         <Card className="grid gap-3">
                             <CardHeader>
                                 <CardTitle className="font-semibold text-black">Payment</CardTitle>

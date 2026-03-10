@@ -176,7 +176,7 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
                     <span className="text-sm text-muted-foreground">Send</span>
                 </div>
             </DialogTrigger>
-            <DialogContent className="bg-slate-50  flex flex-col gap-10">
+            <DialogContent className="bg-slate-50 flex flex-col gap-10">
                 <DialogHeader>
                     <DialogTitle className="font-serif text-3xl font-light">Send funds</DialogTitle>
                     <DialogDescription></DialogDescription>

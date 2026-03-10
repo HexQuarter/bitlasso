@@ -2,7 +2,7 @@ import { type ColumnDef } from "@tanstack/react-table"
 
 import { DataTable } from "@/components/ui/data-table"
 import React, { useState } from "react"
-import { CircleMinus, ExternalLink, MoreHorizontal } from "lucide-react"
+import { ExternalLink, MoreHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { IssueReceiptForm, type IssueReceiptData } from "./issue-receipt"
@@ -24,7 +24,7 @@ export type Payment = {
     settlementMode?: string
 }
 
-const getColumns = (onRemove: (id: string) => void, onClaim: (id: string) => Promise<void>, onDeriveReceipt: (data: IssueReceiptData) => Promise<void>, paymentRequests: Payment[], receipts: Receipt[]) => {
+const getColumns = (onClaim: (id: string) => Promise<void>, onDeriveReceipt: (data: IssueReceiptData) => Promise<void>, paymentRequests: Payment[], receipts: Receipt[]) => {
     return [
         {
             accessorKey: "createdAt",
@@ -182,7 +182,6 @@ const getColumns = (onRemove: (id: string) => void, onClaim: (id: string) => Pro
                             {redeemTxUrl && <DropdownMenuItem onClick={() => window.open(redeemTxUrl, '_blank')}>Open redeem transaction <ExternalLink /></DropdownMenuItem>}
                             {derivedReceipt && <DropdownMenuItem onClick={() => window.open(deriveReceiptTx, '_blank')}>Open receipt mint transaction <ExternalLink /></DropdownMenuItem>}
                             {row.original.settleTx && <DropdownMenuItem onClick={() => window.open(`#/payment/${row.original.id}/certificate`, '_blank')}>Open payment certificate<ExternalLink /></DropdownMenuItem>}
-                            <DropdownMenuItem onClick={() => onRemove(row.original.id)}>Remove <CircleMinus /></DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 )
@@ -194,15 +193,14 @@ const getColumns = (onRemove: (id: string) => void, onClaim: (id: string) => Pro
 
 type Props = {
     data: Payment[]
-    onRemove: (id: string) => Promise<void>
     onClaim: (id: string) => Promise<void>
     onDeriveReceipt: (data: IssueReceiptData) => Promise<void>,
     paymentRequests: Payment[],
     receipts: Receipt[]
 }
 
-export const PaymentTable: React.FC<Props> = ({ data, onRemove, onClaim, onDeriveReceipt, paymentRequests, receipts }) => {
+export const PaymentTable: React.FC<Props> = ({ data, onClaim, onDeriveReceipt, paymentRequests, receipts }) => {
     return (
-        <DataTable columns={getColumns(onRemove, onClaim, onDeriveReceipt, paymentRequests, receipts)} data={data} />
+        <DataTable columns={getColumns(onClaim, onDeriveReceipt, paymentRequests, receipts)} data={data} />
     )
 }
