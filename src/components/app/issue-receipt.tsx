@@ -126,7 +126,7 @@ export const IssueReceiptForm: React.FC<Props> = ({ onSubmit, paymentRequests, b
                                 <CardDescription className="text-xs">Represents completed work. Redeemable according to your terms for discounting.</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <Input required id="amount" type='number' min='0' placeholder='0' onChange={(e) => handleChangeAmount(e.target.value)} value={_amount} />
+                                <Input required id="amount" type='number' inputMode="numeric" min='0' placeholder='0' onChange={(e) => handleChangeAmount(e.target.value)} value={_amount} />
                             </CardContent>
                             <CardFooter className="flex justify-between">
                                 <span className="text-right text-xs text-gray-400">{_amount} $ </span>

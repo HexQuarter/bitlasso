@@ -57,7 +57,7 @@ export const MintTokenForm: React.FC<Props> = ({ onSubmit, ...props }) => {
                         <CardContent>
                             <div className="flex flex-col gap-4 my-4">
                                 <div className="grid gap-3">
-                                    <Input required id="amount" type='number' min='0' placeholder='1' onChange={(e) => setAmount(parseFloat(e.target.value))} />
+                                    <Input required id="amount" type='number' inputMode="numeric" min='0' placeholder='1' onChange={(e) => setAmount(parseFloat(e.target.value))} />
                                 </div>
                             </div>
                         </CardContent>

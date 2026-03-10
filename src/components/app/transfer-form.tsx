@@ -58,7 +58,7 @@ export const TransferForm: React.FC<Props> = ({ onSubmit }) => {
                         </div>
                         <div className="grid gap-3">
                             <Label htmlFor="amount">Amount</Label>
-                            <Input required id="amount" type='number' min='0' onChange={(e) => setAmount(parseFloat(e.target.value))} />
+                            <Input required id="amount" type='number'inputMode="numeric"  min='0' onChange={(e) => setAmount(parseFloat(e.target.value))} />
                         </div>
                     </div>
                     <DialogFooter>

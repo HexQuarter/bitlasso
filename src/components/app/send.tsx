@@ -193,93 +193,87 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
                             <p className="text-muted-foreground text-sm">Instant and free transfers between Spark users with complete privacy.</p>
                             <div className="flex flex-col gap-5 w-full">
                                 <AssetSelector assets={assets} onSelected={handleSelectedAsset} />
-                                <form>
-                                    <div className="flex flex-col gap-4 my-4">
-                                        <div className="grid gap-3">
-                                            <Label htmlFor="address">Recipient address</Label>
-                                            <Input required id="address" onChange={(e) => handleRecipientChange(e.target.value)} placeholder="spark...." />
-                                            {recipientError && <p className="text-primary text-xs">{recipientError}</p>}
-                                        </div>
-                                        <div className="grid gap-3">
-                                            <Label htmlFor="amount">Amount of {selectedAsset.symbol} to send</Label>
-                                            <Input required id="amount" type='number' min={0} onChange={(e) => handleChangeAmount(e.target.value)} placeholder="0" value={amount} />
-                                            <div className="flex md:flex-row flex-col gap-1 justify-between md:items-center">
-                                                <div>
-                                                    {selectedAsset.symbol == 'BTC' && <span className="text-xs">Sending: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(amount * price)}</span>}
-                                                </div>
-                                                <div className="flex gap-1 items-center">
-                                                    {amount != selectedAsset.max && <Badge className="bg-gray-100 text-gray-400 border-gray-200 font-light pl-2 pr-2 hover:cursor-pointer hover:bg-gray-200 hover:text-gray-500" onClick={() => setMaxAmount()}>Max</Badge>}
-                                                    <span className="text-xs">{selectedAsset.max} {selectedAsset.symbol} {selectedAsset.symbol == 'BTC' && <span>({new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(selectedAsset.max * price)})</span>}</span>
-                                                </div>
-                                            </div>
-                                            {amount > selectedAsset.max && <span className="items-center flex text-xs text-primary font-semibold">Insufficient funds. <br />The amount entered is greater than your balance ({selectedAsset.max} {selectedAsset.symbol})</span>}
-                                            {loadingFee && <span className="text-xs flex items-center gap-2">Estimated fee: <Spinner /></span>}
-                                            {!loadingFee && fee !== undefined && <span className="text-xs">Estimated fee: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(fee * price)}</span>}
-                                        </div>
+                                <div className="flex flex-col gap-4 my-4">
+                                    <div className="grid gap-3">
+                                        <Label htmlFor="address">Recipient address</Label>
+                                        <Input required id="address" onChange={(e) => handleRecipientChange(e.target.value)} placeholder="spark...." />
+                                        {recipientError && <p className="text-primary text-xs">{recipientError}</p>}
                                     </div>
-                                </form>
+                                    <div className="grid gap-3">
+                                        <Label htmlFor="amount">Amount of {selectedAsset.symbol} to send</Label>
+                                        <Input required id="amount" type='number' inputMode="numeric" min={0} onChange={(e) => handleChangeAmount(e.target.value)} placeholder="0" value={amount} />
+                                        <div className="flex md:flex-row flex-col gap-1 justify-between md:items-center">
+                                            <div>
+                                                {selectedAsset.symbol == 'BTC' && <span className="text-xs">Sending: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(amount * price)}</span>}
+                                            </div>
+                                            <div className="flex gap-1 items-center">
+                                                {amount != selectedAsset.max && <Badge className="bg-gray-100 text-gray-400 border-gray-200 font-light pl-2 pr-2 hover:cursor-pointer hover:bg-gray-200 hover:text-gray-500" onClick={() => setMaxAmount()}>Max</Badge>}
+                                                <span className="text-xs">{selectedAsset.max} {selectedAsset.symbol} {selectedAsset.symbol == 'BTC' && <span>({new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(selectedAsset.max * price)})</span>}</span>
+                                            </div>
+                                        </div>
+                                        {amount > selectedAsset.max && <span className="items-center flex text-xs text-primary font-semibold">Insufficient funds. <br />The amount entered is greater than your balance ({selectedAsset.max} {selectedAsset.symbol})</span>}
+                                        {loadingFee && <span className="text-xs flex items-center gap-2">Estimated fee: <Spinner /></span>}
+                                        {!loadingFee && fee !== undefined && <span className="text-xs">Estimated fee: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(fee * price)}</span>}
+                                    </div>
+                                </div>
                             </div>
                         </TabsContent>
                         <TabsContent value="lightning" className="flex flex-col gap-5">
                             <h2 className="font-semibold text-xl">Send via Lightning</h2>
                             <p className="text-muted-foreground text-sm">Fast global payments, reaching any Lightning wallet worldwide.</p>
                             <div className="flex flex-col gap-5 w-full">
-                                <form>
-                                    <div className="flex flex-col gap-4 my-4">
-                                        <div className="grid gap-3">
-                                            <Label htmlFor="address">Invoice or address</Label>
-                                            <Input required id="address" onChange={(e) => handleRecipientChange(e.target.value)} placeholder="ln...." />
-                                            {recipientError && <p className="text-primary text-xs">{recipientError}</p>}
-                                        </div>
-                                        <div className="grid gap-3">
-                                            <Label htmlFor="amount">Amount of BTC to send</Label>
-                                            <Input required id="amount" type='number' min={0} onChange={(e) => handleChangeAmount(e.target.value)} placeholder="0" value={amount} />
-                                            <div className="flex md:flex-row flex-col gap-1 justify-between md:items-center">
-                                                <div>
-                                                    <span className="text-xs">Sending: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(amount * price)}</span>
-                                                </div>
-                                                <div className="flex gap-1 items-center">
-                                                    {amount != selectedAsset.max && <Badge className="bg-gray-100 text-gray-400 border-gray-200 font-light pl-2 pr-2 hover:cursor-pointer hover:bg-gray-200 hover:text-gray-500" onClick={() => setMaxAmount()}>Max</Badge>}
-                                                    <span className="text-xs">{selectedAsset.max} {selectedAsset.symbol} <span>({new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(selectedAsset.max * price)})</span></span>
-                                                </div>
-                                            </div>
-                                            {amount > selectedAsset.max && <span className="items-center flex text-xs text-primary font-semibold">Insufficient funds. <br />The amount entered is greater than your balance ({selectedAsset.max} {selectedAsset.symbol})</span>}
-                                            {loadingFee && <span className="text-xs flex items-center gap-2">Estimated fee: <Spinner /></span>}
-                                            {!loadingFee && fee !== undefined && <span className="text-xs">Estimated fee: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(fee * price)}</span>}
-                                        </div>
+                                <div className="flex flex-col gap-4 my-4">
+                                    <div className="grid gap-3">
+                                        <Label htmlFor="address">Invoice or address</Label>
+                                        <Input required id="address" onChange={(e) => handleRecipientChange(e.target.value)} placeholder="ln...." />
+                                        {recipientError && <p className="text-primary text-xs">{recipientError}</p>}
                                     </div>
-                                </form>
+                                    <div className="grid gap-3">
+                                        <Label htmlFor="amount">Amount of BTC to send</Label>
+                                        <Input required id="amount" type='number' inputMode="numeric" min={0} onChange={(e) => handleChangeAmount(e.target.value)} placeholder="0" value={amount} />
+                                        <div className="flex md:flex-row flex-col gap-1 justify-between md:items-center">
+                                            <div>
+                                                <span className="text-xs">Sending: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(amount * price)}</span>
+                                            </div>
+                                            <div className="flex gap-1 items-center">
+                                                {amount != selectedAsset.max && <Badge className="bg-gray-100 text-gray-400 border-gray-200 font-light pl-2 pr-2 hover:cursor-pointer hover:bg-gray-200 hover:text-gray-500" onClick={() => setMaxAmount()}>Max</Badge>}
+                                                <span className="text-xs">{selectedAsset.max} {selectedAsset.symbol} <span>({new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(selectedAsset.max * price)})</span></span>
+                                            </div>
+                                        </div>
+                                        {amount > selectedAsset.max && <span className="items-center flex text-xs text-primary font-semibold">Insufficient funds. <br />The amount entered is greater than your balance ({selectedAsset.max} {selectedAsset.symbol})</span>}
+                                        {loadingFee && <span className="text-xs flex items-center gap-2">Estimated fee: <Spinner /></span>}
+                                        {!loadingFee && fee !== undefined && <span className="text-xs">Estimated fee: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(fee * price)}</span>}
+                                    </div>
+                                </div>
                             </div>
                         </TabsContent>
                         <TabsContent value="bitcoin" className="flex flex-col gap-5">
                             <h2 className="font-semibold text-xl">Send via Bitcoin</h2>
                             <p className="text-muted-foreground text-sm">Secure on-chain settlement with maximum security and global accessibility.</p>
                             <div className="flex flex-col gap-5 w-full">
-                                <form>
-                                    <div className="flex flex-col gap-4 my-4">
-                                        <div className="grid gap-3">
-                                            <Label htmlFor="address">Recipient address</Label>
-                                            <Input required id="address" onChange={(e) => handleRecipientChange(e.target.value)} placeholder="bc...." />
-                                            {recipientError && <p className="text-primary text-xs">{recipientError}</p>}
-                                        </div>
-                                        <div className="grid gap-3">
-                                            <Label htmlFor="amount">Amount of BTC to send</Label>
-                                            <Input required id="amount" type='number' min={0} onChange={(e) => handleChangeAmount(e.target.value)} placeholder="0" value={amount} />
-                                            <div className="flex md:flex-row flex-col gap-1 justify-between md:items-center">
-                                                <div>
-                                                    <span className="text-xs">Sending: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(amount * price)}</span>
-                                                </div>
-                                                <div className="flex gap-1 items-center">
-                                                    {amount != selectedAsset.max && <Badge className="bg-gray-100 text-gray-400 border-gray-200 font-light pl-2 pr-2 hover:cursor-pointer hover:bg-gray-200 hover:text-gray-500" onClick={() => setMaxAmount()}>Max</Badge>}
-                                                    <span className="text-xs">{selectedAsset.max} {selectedAsset.symbol} <span>({new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(selectedAsset.max * price)})</span></span>
-                                                </div>
-                                            </div>
-                                            {amount > selectedAsset.max && <span className="items-center flex text-xs text-primary font-semibold">Insufficient funds. <br />The amount entered is greater than your balance ({selectedAsset.max} {selectedAsset.symbol})</span>}
-                                            {loadingFee && <span className="text-xs flex items-center gap-2">Estimated fee: <Spinner /></span>}
-                                            {!loadingFee && fee !== undefined && <span className="text-xs">Estimated fee: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(fee * price)}</span>}
-                                        </div>
+                                <div className="flex flex-col gap-4 my-4">
+                                    <div className="grid gap-3">
+                                        <Label htmlFor="address">Recipient address</Label>
+                                        <Input required id="address" onChange={(e) => handleRecipientChange(e.target.value)} placeholder="bc...." />
+                                        {recipientError && <p className="text-primary text-xs">{recipientError}</p>}
                                     </div>
-                                </form>
+                                    <div className="grid gap-3">
+                                        <Label htmlFor="amount">Amount of BTC to send</Label>
+                                        <Input required id="amount" type='number' inputMode="numeric" min={0} onChange={(e) => handleChangeAmount(e.target.value)} placeholder="0" value={amount} />
+                                        <div className="flex md:flex-row flex-col gap-1 justify-between md:items-center">
+                                            <div>
+                                                <span className="text-xs">Sending: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(amount * price)}</span>
+                                            </div>
+                                            <div className="flex gap-1 items-center">
+                                                {amount != selectedAsset.max && <Badge className="bg-gray-100 text-gray-400 border-gray-200 font-light pl-2 pr-2 hover:cursor-pointer hover:bg-gray-200 hover:text-gray-500" onClick={() => setMaxAmount()}>Max</Badge>}
+                                                <span className="text-xs">{selectedAsset.max} {selectedAsset.symbol} <span>({new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(selectedAsset.max * price)})</span></span>
+                                            </div>
+                                        </div>
+                                        {amount > selectedAsset.max && <span className="items-center flex text-xs text-primary font-semibold">Insufficient funds. <br />The amount entered is greater than your balance ({selectedAsset.max} {selectedAsset.symbol})</span>}
+                                        {loadingFee && <span className="text-xs flex items-center gap-2">Estimated fee: <Spinner /></span>}
+                                        {!loadingFee && fee !== undefined && <span className="text-xs">Estimated fee: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(fee * price)}</span>}
+                                    </div>
+                                </div>
                             </div>
                         </TabsContent>
                     </Tabs>

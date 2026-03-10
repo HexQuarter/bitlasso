@@ -160,16 +160,19 @@ export const DashboardPage = () => {
 
     useEffect(() => {
         if (!wallet) return
+
+        setTimeout(async () => {
+            const notifSettings = await getNotifSettings(wallet)
+            if (!notifSettings || (notifSettings.email == undefined && notifSettings.npub == undefined)) {
+                setNotifSettingAlert(true)
+            }
+        })
+
         getStatus()
             .then(async ({ sparkStatus }) => {
                 if (sparkStatus == 'operational') {
                     setErrorSpark(undefined)
-                    setTimeout(async () => {
-                        const notifSettings = await getNotifSettings(wallet)
-                        if (!notifSettings || (notifSettings.email == undefined && notifSettings.npub == undefined)) {
-                            setNotifSettingAlert(true)
-                        }
-                    })
+
                     await fetchData(wallet)
 
                     wallet.on('synced', async () => {
