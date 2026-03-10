@@ -7,6 +7,7 @@ import { LogOutIcon, Menu, MoreVertical, X } from "lucide-react"
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 
 import LogoPng from '../../../public/logo.svg'
+import { useWallet } from "@/hooks/use-wallet"
 
 type NavItemType = {
   title: string
@@ -19,6 +20,7 @@ type NavItemType = {
 export function SiteHeader() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { wallet } = useWallet()
 
   const [menuItems, setMenuItems] = useState<NavItemType[]>([
     {
@@ -42,6 +44,7 @@ export function SiteHeader() {
   }, [location])
 
   const logout = async () => {
+    await wallet!.disconnect()
     localStorage.removeItem('BITLASSO_MNEMONIC')
     localStorage.removeItem('BITLASSO_PAYMENT_NONCE')
     localStorage.removeItem('BITLASSO_SECURED_MNEMONIC')
