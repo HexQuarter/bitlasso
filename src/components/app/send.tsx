@@ -176,7 +176,7 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
                     <span className="text-sm text-muted-foreground">Send</span>
                 </div>
             </DialogTrigger>
-            <DialogContent className="bg-slate-50 p-10 flex flex-col gap-10">
+            <DialogContent className="bg-slate-50  flex flex-col gap-10">
                 <DialogHeader>
                     <DialogTitle className="font-serif text-3xl font-light">Send funds</DialogTitle>
                     <DialogDescription></DialogDescription>
@@ -203,7 +203,7 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
                                         <div className="grid gap-3">
                                             <Label htmlFor="amount">Amount of {selectedAsset.symbol} to send</Label>
                                             <Input required id="amount" type='number' min={0} onChange={(e) => handleChangeAmount(e.target.value)} placeholder="0" value={amount} />
-                                            <div className="flex gap-1 justify-between items-center">
+                                            <div className="flex md:flex-row flex-col gap-1 justify-between md:items-center">
                                                 <div>
                                                     {selectedAsset.symbol == 'BTC' && <span className="text-xs">Sending: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(amount * price)}</span>}
                                                 </div>
@@ -234,7 +234,7 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
                                         <div className="grid gap-3">
                                             <Label htmlFor="amount">Amount of BTC to send</Label>
                                             <Input required id="amount" type='number' min={0} onChange={(e) => handleChangeAmount(e.target.value)} placeholder="0" value={amount} />
-                                            <div className="flex gap-1 justify-between items-center">
+                                            <div className="flex md:flex-row flex-col gap-1 justify-between md:items-center">
                                                 <div>
                                                     <span className="text-xs">Sending: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(amount * price)}</span>
                                                 </div>
@@ -265,7 +265,7 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
                                         <div className="grid gap-3">
                                             <Label htmlFor="amount">Amount of BTC to send</Label>
                                             <Input required id="amount" type='number' min={0} onChange={(e) => handleChangeAmount(e.target.value)} placeholder="0" value={amount} />
-                                            <div className="flex gap-1 justify-between items-center">
+                                            <div className="flex md:flex-row flex-col gap-1 justify-between md:items-center">
                                                 <div>
                                                     <span className="text-xs">Sending: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(amount * price)}</span>
                                                 </div>

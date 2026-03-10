@@ -1,12 +1,10 @@
 import { IconDashboard, IconSettings2, type Icon } from "@tabler/icons-react"
 import { Link, useLocation, useNavigate } from "react-router"
 import { useEffect, useState } from "react"
-import { useWallet } from "@/hooks/use-wallet"
-import { shortenAddress } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ChevronDown, LogOutIcon, Menu, MoreVertical, Wallet, X } from "lucide-react"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { LogOutIcon, Menu, MoreVertical, X } from "lucide-react"
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 
 import LogoPng from '../../../public/logo.svg'
 
@@ -21,10 +19,6 @@ type NavItemType = {
 export function SiteHeader() {
   const navigate = useNavigate()
   const location = useLocation()
-
-  const { wallet } = useWallet()
-
-  const [sparkAddress, setSparkAddress] = useState("")
 
   const [menuItems, setMenuItems] = useState<NavItemType[]>([
     {
@@ -46,12 +40,6 @@ export function SiteHeader() {
       return menu
     }))
   }, [location])
-
-  useEffect(() => {
-    if (wallet) {
-      wallet.getSparkAddress().then(setSparkAddress)
-    } sparkAddress
-  }, [wallet])
 
   const logout = async () => {
     localStorage.removeItem('BITLASSO_MNEMONIC')
@@ -87,32 +75,22 @@ export function SiteHeader() {
           </Link>
         ))}
         <div className="flex text-xs items-center gap-2 text-gray-500 hidden sm:flex">
-          {wallet &&
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant='ghost' className="text-xs rounded-full flex items-center gap-1"><Wallet className="h-5" /> {shortenAddress(sparkAddress)} <MoreVertical /></Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem className="text-xs focus:text-primary focus:bg-primary/10 h-8 flex items-center gap-1" onClick={logout} >
-                  <LogOutIcon className="h-5" /> Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-          }
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant='ghost' className="text-xs rounded-full flex items-center gap-1"><MoreVertical /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem className="text-xs focus:text-primary focus:bg-primary/10 h-8 flex items-center gap-1" onClick={logout} >
+                <LogOutIcon className="h-5" /> Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
       <div className="sm:hidden w-full">
         <Collapsible open={open} onOpenChange={setOpen}>
-          <CollapsibleTrigger asChild>
-            <ChevronDown
-              size={14}
-              className={`transition-transform ${open ? "rotate-180" : ""}`}
-            />
-          </CollapsibleTrigger>
-
-          <CollapsibleContent className="absolute z-10 top-12 p-5 right-0 border rounded-md flex flex-col gap-5 bg-white border-primary/20 text-xs">
+          <CollapsibleContent className="absolute z-10 top-12 p-5 right-5 border rounded-md flex flex-col gap-5 bg-white border-primary/20 text-xs">
             {menuItems.map((m, i) => (
               <button
                 key={i}
@@ -123,16 +101,14 @@ export function SiteHeader() {
                 {m.title}
               </button>
             ))}
-            {wallet &&
-              <>
-                <button
-                  onClick={logout}
-                  className="w-full text-left hover:bg-primary/10 flex items-center text-muted-foreground gap-1"
-                >
-                  <LogOutIcon className="h-5" /> Logout
-                </button>
-              </>
-            }
+
+            <button
+              onClick={logout}
+              className="w-full text-left hover:bg-primary/10 flex items-center text-muted-foreground gap-1"
+            >
+              <LogOutIcon className="h-5" /> Logout
+            </button>
+
           </CollapsibleContent>
         </Collapsible>
       </div>

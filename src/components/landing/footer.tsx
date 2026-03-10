@@ -7,13 +7,13 @@ export function Footer() {
     return (
         <footer className="border-t border-border/40 px-6 py-16 sm:px-10 md:py-20 lg:px-16">
             <div className="mx-auto flex max-w-[90rem] gap-10 flex-col">
-                <div className='flex md:justify-between md:flex-row '>
+                <div className='flex flex-col md:justify-between md:flex-row gap-5'>
                     <div className='flex flex-col gap-5'>
                         <a href="#" className="font-serif text-3xl tracking-tight text-foreground flex items-center gap-2">
                             <img src={LogoPng} className='w-10' />
                             <span><span className="text-primary">bit</span>lasso</span>
                         </a>
-                        <div className='flex flex-col gap-1'>
+                        <div className='flex flex-col md:gap-1 gap-2'>
                             <a href='' className='text-sm text-muted-foreground hover:underline'>Terms</a>
                             <a href='' className='text-sm text-muted-foreground hover:underline'>Privacy</a>
                         </div>

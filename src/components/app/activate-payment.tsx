@@ -97,11 +97,11 @@ export const ActivePayment: React.FC<Props> = ({ settings, loading, price, onSub
                 <p className="font-medium font-mono text-primary uppercase text-xs px-5 py-2">Activate payment request</p>
             </div>
             <div className="flex flex-col px-5">
-                <header className="flex justify-between">
+                <header className="flex md:flex-row flex-col justify-between">
                     <p className="text-sm font-bold">Cost 1 credit (~$1)</p>
-                    <div className="flex flex-col gap-2 items-end">
-                        <p className="text-end text-xs">Your got <span className="text-primary">{balance}</span> credits</p>
-                        {view != 'buy' && <Button variant="outline" className="text-xs h-0 py-3 px-3" onClick={() => setView('buy')}>Buy more credits  - save up to 25%</Button>}
+                    <div className="flex flex-col gap-2 md:items-end">
+                        <p className="md:text-end text-xs">Your got <span className="text-primary">{balance}</span> credits</p>
+                        {view != 'buy' && <div><Button variant="outline" className="text-xs h-0 py-3 px-3" onClick={() => setView('buy')}>Buy more credits  - save up to 25%</Button></div>}
                     </div>
                 </header>
                 {view == 'buy' && <BuyBundleView

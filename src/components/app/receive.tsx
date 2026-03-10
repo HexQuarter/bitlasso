@@ -22,7 +22,7 @@ export const Receive: React.FC<Props> = ({ addresses }) => {
                     <span className="text-sm text-muted-foreground">Receive</span>
                 </div>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px] bg-slate-50 p-10 flex flex-col gap-10">
+            <DialogContent className="sm:max-w-[500px] bg-slate-50 flex flex-col gap-10">
                 <DialogHeader>
                     <DialogTitle className="font-serif text-3xl font-light">Receive funds</DialogTitle>
                 </DialogHeader>
