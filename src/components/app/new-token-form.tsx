@@ -36,9 +36,6 @@ export const NewTokenForm: React.FC<Props> = ({ onSubmit }) => {
         e.preventDefault()
         setLoading(true)
 
-        // TODO: Short and Memorable: Keep tickers to 3-5 characters
-        // TODO: Uppercase: Use all uppercase letters
-
         await onSubmit({ name, symbol })
         setLoading(false)
         setOpen(false)
@@ -47,7 +44,7 @@ export const NewTokenForm: React.FC<Props> = ({ onSubmit }) => {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild onClick={() => setOpen(true)} >
-                <Button className="bg-primary hover:bg-black">Create token</Button>
+                <Button className="bg-black hover:bg-primary w-full lg:w-auto">Create token</Button>
             </DialogTrigger>
             <DialogContent className="bg-slate-50">
                 <DialogHeader>

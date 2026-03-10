@@ -574,7 +574,7 @@ export const DashboardPage = () => {
                         <CardContent>
                             <div className="flex flex-col text-sm gap-2 justify-between">
                                 <div className="bg-white border-1 border-border/40 p-4 rounded-lg group flex gap-2 items-center">
-                                    <div className="text-primary flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/8 ring-1 ring-primary/10 transition-all duration-300 group-hover:bg-primary/12 group-hover:ring-primary/20">
+                                    <div className="text-primary flex p-2 h-12 w-12 items-center justify-center rounded-2xl bg-primary/8 ring-1 ring-primary/10 transition-all duration-300 group-hover:bg-primary/12 group-hover:ring-primary/20">
                                         <Rocket className="h-4" />
                                     </div>
                                     <div className="flex flex-col gap-1">
@@ -583,7 +583,7 @@ export const DashboardPage = () => {
                                     </div>
                                 </div>
                                 <div className="bg-white border-1 border-border/40 p-4 rounded-lg flex gap-2 items-center">
-                                    <div className="text-primary flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/8 ring-1 ring-primary/10 transition-all duration-300 group-hover:bg-primary/12 group-hover:ring-primary/20">
+                                    <div className="text-primary flex p-2 h-12 w-12 items-center justify-center rounded-2xl bg-primary/8 ring-1 ring-primary/10 transition-all duration-300 group-hover:bg-primary/12 group-hover:ring-primary/20">
                                         <Pickaxe className="h-4" />
                                     </div>
                                     <div className="flex flex-col gap-1">
@@ -592,7 +592,7 @@ export const DashboardPage = () => {
                                     </div>
                                 </div>
                                 <div className="bg-white border-1 border-border/40 p-4 rounded-lg flex gap-2 items-center">
-                                    <div className="text-primary flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/8 ring-1 ring-primary/10 transition-all duration-300 group-hover:bg-primary/12 group-hover:ring-primary/20">
+                                    <div className="text-primary flex p-2 h-12 w-12 items-center justify-center rounded-2xl bg-primary/8 ring-1 ring-primary/10 transition-all duration-300 group-hover:bg-primary/12 group-hover:ring-primary/20">
                                         <RefreshCcw className="h-4" />
                                     </div>
                                     <div className="flex flex-col gap-1">
@@ -663,7 +663,7 @@ export const DashboardPage = () => {
                         <CardTitle className="flex 2xl:flex-row flex-col justify-between w-full gap-10">
                             <div className="flex flex-col lg:flex-row justify-between lg:w-full gap-5">
                                 <p className="text-2xl font-serif text-2xl font-light ">Receipts</p>
-                                <CardAction >
+                                <CardAction className="w-full lg:w-auto">
                                     {receiptLoading && <Skeleton className="h-10 w-30" />}
                                     {!receiptLoading && <IssueReceiptForm onSubmit={handleIssueReceipt} paymentRequests={paymentRequests} />}
                                 </CardAction>

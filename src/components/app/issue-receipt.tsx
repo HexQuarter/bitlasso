@@ -107,7 +107,7 @@ export const IssueReceiptForm: React.FC<Props> = ({ onSubmit, paymentRequests, b
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild onClick={() => setOpen(true)} >
                 <div>
-                    {buttonVariant != 'none' && <Button className="w-full lg:w-auto " variant={buttonVariant || 'default'}>{buttonText}</Button>}
+                    {buttonVariant != 'none' && <Button className='lg:w-auto w-full' variant={buttonVariant || 'default'}>{buttonText}</Button>}
                     {buttonVariant == 'none' && <Button variant='ghost' className="justify-start pl-2 w-full text-primary">{buttonText}</Button>}
                 </div>
             </DialogTrigger>

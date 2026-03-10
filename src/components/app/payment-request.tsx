@@ -93,7 +93,7 @@ export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price, settings,
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild onClick={() => setOpen(true)} >
-                <Button className="flex gap-2 has-[>svg]:pr-5 bg-primary hover:bg-black"><Plus className="h-4 w-4" />New payment request</Button>
+                <Button className="flex gap-2 has-[>svg]:pr-5 bg-primary hover:bg-black w-full lg:w-auto"><Plus className="h-4 w-4" />New payment request</Button>
             </DialogTrigger>
             <DialogContent className="max-h-[90vh] overflow-hidden bg-slate-50 overflow-y-auto">
                 <DialogHeader className="">
