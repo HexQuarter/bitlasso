@@ -8,27 +8,48 @@ import { type NotificationSettings } from "@/components/app/notification-setting
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { AlertTriangleIcon, Copy, Eye, SaveAll } from "lucide-react"
+import { AlertTriangleIcon, Copy, Eye, SaveAll, Zap } from "lucide-react"
 import { useWallet } from "@/hooks/use-wallet"
 import { toast } from "sonner"
 import { Spinner } from "@/components/ui/spinner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import type { WindowNostr } from 'nostr-tools/nip07'
+import { hexToBytes } from "nostr-tools/utils"
+import { bech32 } from "bech32"
+import QRCode from "react-qr-code"
+
+declare global {
+    interface Window {
+        nostr?: WindowNostr
+    }
+}
+const hasNostr = () => typeof window !== 'undefined' && !!window.nostr
 
 export const SettingsPage = () => {
     const { wallet } = useWallet()
     const [initializing, setInitializing] = useState(true)
     const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({ email: '', npub: '' })
     const [mnemonic, setMnemonic] = useState<string[]>([])
-
+    const [saveLoading, setSaveLoading] = useState(false)
     const [hasSecuredMnemonic, setHashSecureMnemonic] = useState(localStorage.getItem('BITLASSO_SECURED_MNEMONIC') || 'false')
+    const [sparkAddress, setSparkAddress] = useState<undefined | string>(undefined)
+    const [nostrPubKey, setNostrPubKey] = useState<undefined | string>(undefined)
 
     useEffect(() => {
         if (!wallet) return
+
         const fetchData = async () => {
             const notif = await getNotifSettings(wallet)
             if (notif) {
                 setNotificationSettings(notif)
             }
+
+            const sparkAddress = await wallet.getSparkAddress()
+            const nostrPubkey = await wallet.getNostrPublicKey()
+
+            setSparkAddress(sparkAddress)
+            setNostrPubKey(nostrPubkey)
+
             setInitializing(false)
         }
 
@@ -45,7 +66,12 @@ export const SettingsPage = () => {
 
     const handleSave = async () => {
         if (!wallet) return
+        setSaveLoading(true)
         await registerNotifSettings(wallet, notificationSettings)
+
+        setTimeout(() => {
+            setSaveLoading(false)
+        }, 1000)
     }
 
     const handleRevealSecret = () => {
@@ -66,6 +92,16 @@ export const SettingsPage = () => {
         setHashSecureMnemonic('true')
     }
 
+    const signNostrConnect = async () => {
+        const pubkey = await window.nostr?.getPublicKey() as string
+        const pkBytes = hexToBytes(pubkey);
+        const npub = bech32.encode('npub', bech32.toWords(pkBytes))
+
+        setNotificationSettings((prev) => ({ ...prev, npub }))
+    }
+
+    const nostrExtension = hasNostr()
+
     return (
         <div className="flex flex-1 flex-col h-full w-full">
             <div className="flex flex-col w-full h-full">
@@ -75,8 +111,8 @@ export const SettingsPage = () => {
                             <h1 className="text-4xl font-serif font-normal text-foreground flex items-center gap-2">Settings {initializing && <Spinner className="text-primary" />}</h1>
                             <h2 className="text-1xl font-light text-muted-foreground">Configure your workspace.</h2>
                         </div>
-                        <div className="grid lg:grid-cols-4 gap-10">
-                            <Card className="col-span-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-10">
+                            <Card className="">
                                 <CardHeader className="font-mono uppercase tracking-wider text-gray-500 text-xs flex justify-between items-center">
                                     <div className="flex items-center gap-2">
                                         <span className="bg-primary/10 p-3 rounded-full items-center"><IconNotification className="h-4 w-4 text-primary" /></span>
@@ -115,17 +151,42 @@ export const SettingsPage = () => {
                                                     placeholder="npub..."
                                                     onChange={(e) => handleNpubChange(e.target.value)} />
                                             </div>
-                                            <div>
+                                            <div className="flex gap-2 flex-col lg:flex-row">
                                                 <Button
-                                                    className="text-sm flex items-center gap-2"
+                                                    className={`text-sm gap-2 justify-start lg:p-6 group ${nostrExtension ? 'flex-1' : ''}`}
                                                     variant='outline'
-                                                    onClick={handleSave} ><SaveAll /> Save</Button>
+                                                    onClick={handleSave} disabled={saveLoading}>
+                                                    <div className="flex gap-2 justify-center items-center">
+                                                        <div className="bg-primary/10 p-2 rounded-full group-hover:bg-white border-1 border-primary/20">
+                                                            <SaveAll />
+                                                        </div>
+                                                        <div className="flex flex-col text-left ">
+                                                            <p className="flex items-center gap-2">Save {saveLoading && <Spinner />}</p>
+                                                            <p className="text-muted-foreground text-xs">Data is encrypted</p>
+                                                        </div>
+                                                    </div>
+
+                                                </Button>
+                                                {nostrExtension && <Button
+                                                    className="text-sm flex justify-start gap-2 flex-1 flex flex-row lg:p-6 group"
+                                                    variant='outline'
+                                                    onClick={signNostrConnect} >
+                                                    <div className="flex gap-2 items-center">
+                                                        <div className="bg-primary/10 p-2 rounded-full group-hover:bg-white border-1 border-primary/20">
+                                                            <Zap />
+                                                        </div>
+                                                        <div className="flex flex-col text-left">
+                                                            <p>Fill-up in with Nostr extension </p>
+                                                            <p className="text-muted-foreground text-xs">NIP-07 extension</p>
+                                                        </div>
+                                                    </div>
+                                                </Button>}
                                             </div>
                                         </>
                                     }
                                 </CardContent>
                             </Card>
-                            <Card className="col-span-1">
+                            <Card className="">
                                 <CardHeader className="text-gray-500 text-xs flex justify-between items-center">
                                     <div className="flex items-center gap-2">
                                         <span className="bg-primary/10 p-3 rounded-full items-center"><IconNotification className="h-4 w-4 text-primary" /></span>
@@ -133,6 +194,24 @@ export const SettingsPage = () => {
                                     </div>
                                 </CardHeader>
                                 <CardContent className="flex flex-col gap-5">
+                                    <div className="flex flex-col md:flex-row items-center justify-around gap-5">
+                                        {initializing && <div className="flex flex-col gap-2 w-full">
+                                            <Skeleton className="h-5 w-full" />
+                                            <Skeleton className="h-40 w-full" />
+                                        </div>}
+                                        {initializing && <div className="flex flex-col gap-2 w-full">
+                                            <Skeleton className="h-5 w-full" />
+                                            <Skeleton className="h-40 w-full" />
+                                        </div>}
+                                        {!initializing && sparkAddress && <div className="flex flex-col gap-2">
+                                            <p className="text-muted-foreground">Spark address</p>
+                                            <QRCode value={sparkAddress} size={200} />
+                                        </div>}
+                                        {!initializing && nostrPubKey && <div className="flex flex-col gap-2">
+                                            <p className="text-muted-foreground">Associated Nostr pubkey</p>
+                                            <QRCode value={nostrPubKey} size={200} />
+                                        </div>}
+                                    </div>
                                     {hasSecuredMnemonic == 'false' && <Alert className="bg-primary/10 border-1 border-primary/20">
                                         <AlertTriangleIcon />
                                         <AlertTitle>Secure your wallet before going live</AlertTitle>
@@ -143,7 +222,17 @@ export const SettingsPage = () => {
                                         </AlertDescription>
                                     </Alert>
                                     }
-                                    {mnemonic.length == 0 && <div><Button variant='outline' className="t" onClick={handleRevealSecret}><Eye /> Export passphrase</Button></div>}
+                                    <div className="flex flex-col lg:flex-row gap-2">
+                                        {mnemonic.length == 0 && <Button variant='outline' className={`text-sm gap-2 justify-start lg:p-6 group ${nostrExtension ? 'flex-1' : ''}`} onClick={handleRevealSecret}>
+                                            <div className="bg-primary/10 p-2 rounded-full group-hover:bg-white border-1 border-primary/20">
+                                                <Eye />
+                                            </div>
+                                            <div className="flex flex-col text-left">
+                                                <p className="flex items-center gap-2">Reveal passphrase</p>
+                                                <p className="text-muted-foreground text-xs">Write it down safely</p>
+                                            </div>
+                                        </Button>}
+                                    </div>
                                     {mnemonic.length > 0 &&
                                         <div className="flex flex-col gap-5">
                                             <div className="grid grid-cols-3 gap-4 text-center">

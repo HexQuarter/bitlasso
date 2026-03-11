@@ -3,7 +3,7 @@ import { SparkWallet } from "@buildonspark/spark-sdk";
 import { getNostrKeyPair, type NostrKeyPair } from "./nostr";
 import { uint8ArrayToNum } from "./utils";
 import { bytesToHex, hexToBytes } from "nostr-tools/utils";
-import { finalizeEvent, type EventTemplate, type VerifiedEvent } from "nostr-tools";
+import { finalizeEvent, nip44, type EventTemplate, type VerifiedEvent } from "nostr-tools";
 import { toast } from "sonner";
 export const BURN_PUBLIC_KEY =
     "020202020202020202020202020202020202020202020202020202020202020202";
@@ -96,6 +96,7 @@ interface _SparkWallet {
     validAddress(string: string, method?: 'spark' | 'lightning' | 'bitcoin'): Promise<boolean>
     signMessage(message: string): Promise<{ signature: string, pubkey: string}>
     disconnect(): Promise<void>
+    ecdhNostrKey(pubKey: string): Uint8Array | undefined
 }
 
 interface NostrWallet {
@@ -725,6 +726,11 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
             throw new Error("Nost wallet undefined")
         }
         return finalizeEvent(event, hexToBytes(this.nostrKeypair.priv))
+    }
+
+    ecdhNostrKey(pubKey: string): Uint8Array | undefined {
+        if (!this.nostrKeypair) return undefined
+        return nip44.getConversationKey(hexToBytes(this.nostrKeypair?.pub), pubKey)
     }
 
     async signMessage(message: string): Promise<{ signature: string, pubkey: string}> {

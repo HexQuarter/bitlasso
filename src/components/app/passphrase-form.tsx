@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 
 import * as bip39 from '@scure/bip39';
 import { wordlist } from "@scure/bip39/wordlists/english.js";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -75,39 +74,41 @@ export const PassphraseForm: React.FC<Props> = ({ onSubmit, onBack, loading = fa
         }
     }
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = () => {
+        console.log('ok')
         onSubmit(mnemonic.join(' '))
     }
 
     return (
-        <form className="bg-white flex flex-col gap-5 md:p-10 " onSubmit={handleSubmit}>
+        <div className="bg-white flex flex-col gap-5 md:p-10 " >
             <div className="flex flex-col items-center gap-10">
                 <h1 className="w-full font-serif text-4xl font-normal text-foreground">Connect your <span className="text-primary">wallet.</span></h1>
                 <p className="text-muted-foreground">Sign in with a Spark-compatible Bitcoin wallet to issue work receipts and manage loyalty.</p>
             </div>
-            <FieldGroup>
-                <FieldLabel>Enter your passphrase</FieldLabel>
+
+            <div className="flex flex-col gap-10">
+                <div className="flex justify-between w-full items-center gap-5">
+                    <span className="font-semibold text-sm flex-1">Enter your passphrase</span>
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
                     {mnemonic.map((_word, index) => (
-                        <Field key={index}>
-                            <Input
-                                className="text-muted-foreground text-sm h-10"
-                                required
-                                onChange={(e) => {
-                                    handleMnemonicChange(e, index);
-                                }}
-                                value={mnemonic[index]}
-                            />
-                        </Field>
+                        <Input
+                            key={index}
+                            className="text-muted-foreground text-sm h-10"
+                            required
+                            onChange={(e) => {
+                                handleMnemonicChange(e, index);
+                            }}
+                            value={mnemonic[index]}
+                        />
                     ))}
                 </div>
                 <div className="flex flex-col lg:flex-row gap-2">
                     <Button className='flex-1 w-full' variant='outline' onClick={() => onBack()}>Back</Button>
-                    {valid && <Button type="submit" className='flex-1 w-full' disabled={loading}>{loading && <Spinner />} Join{loading && 'ing'} your workspace <ArrowUpRight /></Button>}
+                    {valid && <Button onClick={() => handleSubmit()} className='flex-1 w-full' disabled={loading}>{loading && <Spinner />} Join{loading && 'ing'} your workspace <ArrowUpRight /></Button>}
                 </div>
                 {error && <p className="text-red-500 text-sm italic mt-2 text-center">{error}</p>}
-            </FieldGroup>
-        </form>
+            </div>
+        </div>
     )
 }

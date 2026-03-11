@@ -1,5 +1,5 @@
 import type { NotificationSettings } from "@/components/app/notification-setting";
-import { SimplePool, getPublicKey } from "nostr-tools"
+import { SimplePool, getPublicKey, nip44, type VerifiedEvent } from "nostr-tools"
 
 import { HDKey } from "@scure/bip32";
 import { bech32 } from "bech32";
@@ -35,6 +35,10 @@ export type NostrKeyPair = {
     nsec: string
 }
 
+export const publishEvent = async (signedEvent: VerifiedEvent) => {
+    await pool.publish(RELAYS, signedEvent)
+}
+
 export const getNostrKeyPair = (mnemonic: string): NostrKeyPair => {
     const seed = mnemonicToSeedSync(mnemonic)
     const hdkey = HDKey.fromMasterSeed(seed);
@@ -56,9 +60,15 @@ export const getNostrKeyPair = (mnemonic: string): NostrKeyPair => {
 }
 
 export const registerNotifSettings = async (wallet: Wallet, notifSettings: NotificationSettings) => {
+    const conversationKey = wallet.ecdhNostrKey(wallet.getNostrPublicKey())
+    if (!conversationKey) {
+        throw new Error('Cannot derive ECDH with Nostr keypair')
+    }
+    const ciphertext = nip44.encrypt(JSON.stringify(notifSettings), conversationKey)
+
     const event = {
         kind: EventKind.SETTING,
-        content: JSON.stringify(notifSettings),
+        content: ciphertext,
         pubkey: wallet.getNostrPublicKey(),
         created_at: Math.floor(Date.now() / 1000),
         tags: [["n", "0"]] // link to notification settings
@@ -69,18 +79,24 @@ export const registerNotifSettings = async (wallet: Wallet, notifSettings: Notif
 }
 
 export const getNotifSettings = async (wallet: Wallet): Promise<NotificationSettings | undefined> => {
-    return await getNotifSettingsByPublicKey(wallet.getNostrPublicKey())
-}
-
-export const getNotifSettingsByPublicKey = async (publicKey: string): Promise<NotificationSettings | undefined> => {
+    const conversationKey = wallet.ecdhNostrKey(wallet.getNostrPublicKey())
+    if (!conversationKey) {
+        throw new Error('Cannot derive ECDH with Nostr keypair')
+    }
     const events = await pool.querySync(RELAYS, {
         kinds: [EventKind.SETTING],
-        authors: [publicKey],
+        authors: [wallet.getNostrPublicKey()],
         "#n": ["0"] // link to notification settings
     });
     if (events.length > 0) {
         const { content } = events[0]
-        return JSON.parse(content)
+        try {
+            const data = nip44.decrypt(content, conversationKey)
+            return JSON.parse(data)
+        }
+        catch (_) {
+            return undefined
+        }
     }
     return undefined
 }
