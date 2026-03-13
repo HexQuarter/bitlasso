@@ -282,7 +282,7 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
                     <DialogClose asChild>
                         <Button className="bg-white" variant='outline'>Cancel</Button>
                     </DialogClose>
-                    {amount > 0 && amount <= selectedAsset.max && recipient && <Button onClick={handleSend}>Send {loading && <Spinner />}</Button>}
+                    {amount > 0 && amount <= selectedAsset.max && recipient && <Button onClick={handleSend} disabled={loading}>{loading ?  <Spinner /> : 'Send' }</Button>}
                 </DialogFooter>
             </DialogContent>
         </Dialog>
