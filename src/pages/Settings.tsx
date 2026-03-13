@@ -44,11 +44,11 @@ export const SettingsPage = () => {
                 setNotificationSettings(notif)
             }
 
-            const sparkAddress = await wallet.getSparkAddress()
-            const nostrPubkey = await wallet.getNostrPublicKey()
+            const _sparkAddress = await wallet.getSparkAddress()
+            const _nostrPubkey = await wallet.getNostrPublicKey()
 
-            setSparkAddress(sparkAddress)
-            setNostrPubKey(nostrPubkey)
+            setSparkAddress(_sparkAddress)
+            setNostrPubKey(_nostrPubkey)
 
             setInitializing(false)
         }
@@ -151,24 +151,24 @@ export const SettingsPage = () => {
                                                     placeholder="npub..."
                                                     onChange={(e) => handleNpubChange(e.target.value)} />
                                             </div>
-                                            <div className="flex gap-2 flex-col lg:flex-row">
+                                            <div className="flex gap-2 flex-col">
                                                 <Button
-                                                    className={`text-sm gap-2 justify-start lg:p-6 group ${nostrExtension ? 'flex-1' : ''}`}
-                                                    variant='outline'
+                                                    className={`text-sm gap-2 justify-start group ${nostrExtension ? 'flex-1' : ''}`}
+                                                    variant='default'
                                                     onClick={handleSave} disabled={saveLoading}>
                                                     <div className="flex gap-2 justify-center items-center">
-                                                        <div className="bg-primary/10 p-2 rounded-full group-hover:bg-white border-1 border-primary/20">
+                                                        <div className="p-2 text-white rounded-full group-hover:bg-white group-hover:text-primary border-1 border-white/40">
                                                             <SaveAll />
                                                         </div>
                                                         <div className="flex flex-col text-left ">
                                                             <p className="flex items-center gap-2">Save {saveLoading && <Spinner />}</p>
-                                                            <p className="text-muted-foreground text-xs">Data is encrypted</p>
+                                                            <p className="text-white/80 text-xs">Used to confirm checkout payment</p>
                                                         </div>
                                                     </div>
 
                                                 </Button>
                                                 {nostrExtension && <Button
-                                                    className="text-sm flex justify-start gap-2 flex-1 flex flex-row lg:p-6 group"
+                                                    className="text-sm flex justify-start gap-2 flex-1 flex flex-row group"
                                                     variant='outline'
                                                     onClick={signNostrConnect} >
                                                     <div className="flex gap-2 items-center">

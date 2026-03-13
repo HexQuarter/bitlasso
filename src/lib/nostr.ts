@@ -60,15 +60,9 @@ export const getNostrKeyPair = (mnemonic: string): NostrKeyPair => {
 }
 
 export const registerNotifSettings = async (wallet: Wallet, notifSettings: NotificationSettings) => {
-    const conversationKey = wallet.ecdhNostrKey(wallet.getNostrPublicKey())
-    if (!conversationKey) {
-        throw new Error('Cannot derive ECDH with Nostr keypair')
-    }
-    const ciphertext = nip44.encrypt(JSON.stringify(notifSettings), conversationKey)
-
     const event = {
         kind: EventKind.SETTING,
-        content: ciphertext,
+        content: JSON.stringify(notifSettings),
         pubkey: wallet.getNostrPublicKey(),
         created_at: Math.floor(Date.now() / 1000),
         tags: [["n", "0"]] // link to notification settings
@@ -79,10 +73,6 @@ export const registerNotifSettings = async (wallet: Wallet, notifSettings: Notif
 }
 
 export const getNotifSettings = async (wallet: Wallet): Promise<NotificationSettings | undefined> => {
-    const conversationKey = wallet.ecdhNostrKey(wallet.getNostrPublicKey())
-    if (!conversationKey) {
-        throw new Error('Cannot derive ECDH with Nostr keypair')
-    }
     const events = await pool.querySync(RELAYS, {
         kinds: [EventKind.SETTING],
         authors: [wallet.getNostrPublicKey()],
@@ -90,13 +80,7 @@ export const getNotifSettings = async (wallet: Wallet): Promise<NotificationSett
     });
     if (events.length > 0) {
         const { content } = events[0]
-        try {
-            const data = nip44.decrypt(content, conversationKey)
-            return JSON.parse(data)
-        }
-        catch (_) {
-            return undefined
-        }
+        return JSON.parse(content)
     }
     return undefined
 }
