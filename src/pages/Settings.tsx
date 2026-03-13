@@ -16,7 +16,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import type { WindowNostr } from 'nostr-tools/nip07'
 import { hexToBytes } from "nostr-tools/utils"
 import { bech32 } from "bech32"
-import QRCode from "react-qr-code"
 
 declare global {
     interface Window {
@@ -32,8 +31,6 @@ export const SettingsPage = () => {
     const [mnemonic, setMnemonic] = useState<string[]>([])
     const [saveLoading, setSaveLoading] = useState(false)
     const [hasSecuredMnemonic, setHashSecureMnemonic] = useState(localStorage.getItem('BITLASSO_SECURED_MNEMONIC') || 'false')
-    const [sparkAddress, setSparkAddress] = useState<undefined | string>(undefined)
-    const [nostrPubKey, setNostrPubKey] = useState<undefined | string>(undefined)
 
     useEffect(() => {
         if (!wallet) return
@@ -43,12 +40,6 @@ export const SettingsPage = () => {
             if (notif) {
                 setNotificationSettings(notif)
             }
-
-            const _sparkAddress = await wallet.getSparkAddress()
-            const _nostrPubkey = await wallet.getNostrPublicKey()
-
-            setSparkAddress(_sparkAddress)
-            setNostrPubKey(_nostrPubkey)
 
             setInitializing(false)
         }
@@ -194,24 +185,6 @@ export const SettingsPage = () => {
                                     </div>
                                 </CardHeader>
                                 <CardContent className="flex flex-col gap-5">
-                                    <div className="flex flex-col md:flex-row items-center justify-around gap-5">
-                                        {initializing && <div className="flex flex-col gap-2 w-full">
-                                            <Skeleton className="h-5 w-full" />
-                                            <Skeleton className="h-40 w-full" />
-                                        </div>}
-                                        {initializing && <div className="flex flex-col gap-2 w-full">
-                                            <Skeleton className="h-5 w-full" />
-                                            <Skeleton className="h-40 w-full" />
-                                        </div>}
-                                        {!initializing && sparkAddress && <div className="flex flex-col gap-2">
-                                            <p className="text-muted-foreground">Spark address</p>
-                                            <QRCode value={sparkAddress} size={200} />
-                                        </div>}
-                                        {!initializing && nostrPubKey && <div className="flex flex-col gap-2">
-                                            <p className="text-muted-foreground">Associated Nostr pubkey</p>
-                                            <QRCode value={nostrPubKey} size={200} />
-                                        </div>}
-                                    </div>
                                     {hasSecuredMnemonic == 'false' && <Alert className="bg-primary/10 border-1 border-primary/20">
                                         <AlertTriangleIcon />
                                         <AlertTitle>Secure your wallet before going live</AlertTitle>
