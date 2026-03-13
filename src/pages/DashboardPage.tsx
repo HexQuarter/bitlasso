@@ -184,6 +184,23 @@ export const DashboardPage = () => {
                             refreshIssuanceStats(wallet, tokenMetadata)
                         }
                     })
+
+                    wallet.on('paymentReceived', async () => {
+                        await updateBalance(wallet)
+                        const payments = await wallet.listPayments()
+                        setWalletHistory(payments)
+                        if (tokenMetadata) {
+                            refreshIssuanceStats(wallet, tokenMetadata)
+                        }
+                    })
+                    wallet.on('paymentSent', async () => {
+                        await updateBalance(wallet)
+                        const payments = await wallet.listPayments()
+                        setWalletHistory(payments)
+                        if (tokenMetadata) {
+                            refreshIssuanceStats(wallet, tokenMetadata)
+                        }
+                    })
                 }
                 else {
                     setErrorSpark(`Spark status is not operational. Please retry in few moments. We are sorry for this inconvenience.`)
@@ -280,7 +297,10 @@ export const DashboardPage = () => {
     }
 
     const handlePaymentRequest = async (data: PaymentRequestData) => {
-        if (!wallet || !tokenMetadata || !settings || !tokenBalances) return
+        if (!wallet || !tokenMetadata || !settings) {
+            console.log(wallet, tokenMetadata, tokenBalances, settings)
+            return
+        }
 
         const asset = { name: "Bitcoin", symbol: "BTC", max: 0 }
         let txId: string
@@ -288,6 +308,10 @@ export const DashboardPage = () => {
             txId = await send(wallet, asset, data.feeBTC, settings.address, "spark")
         }
         else {
+            if (!tokenBalances) {
+                toast.error('No credits available to activate payment request')
+                return
+            }
             const burnToken = tokenBalances.get(settings.tokenAddress)
             if (!burnToken) {
                 toast.error('No credits available to activate payment request')
@@ -315,7 +339,7 @@ export const DashboardPage = () => {
             })
         }
 
-        const nonce = Number(localStorage.getItem('BITLASSO_PAYMENT_NONCE') || '0') + 1
+        const nonce = Number(localStorage.getItem('BITLASSO_PAYMENT_NONCE') || '1') + 1
         await publishPaymentRequest(txId, wallet, nonce, data.amount, tokenMetadata.identifier, data.discountRate, data.description)
         await refreshPaymentRequests()
 
