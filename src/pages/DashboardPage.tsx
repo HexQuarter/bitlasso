@@ -160,9 +160,6 @@ export const DashboardPage = () => {
 
     useEffect(() => {
         if (!wallet) return
-
-
-
         getStatus()
             .then(async ({ sparkStatus }) => {
                 if (sparkStatus == 'operational') {
@@ -278,6 +275,8 @@ export const DashboardPage = () => {
             },
             ...prevReceipts
         ])
+
+        await refreshIssuanceStats(wallet, tokenMetadata as TokenMetadata)
     }
 
     const handlePaymentRequest = async (data: PaymentRequestData) => {
