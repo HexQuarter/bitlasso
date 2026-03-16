@@ -6,6 +6,8 @@ import { Toaster } from "sonner"
 import { PaymentPage } from "./pages/PaymentPage"
 import { useEffect, useRef } from "react"
 import { CertPage } from "./pages/CertPage"
+import { TermsPage } from "./pages/TermsPage"
+import { PrivacyPage } from "./pages/PrivacyPage"
 
 function ScrollToAnchor() {
     const location = useLocation();
@@ -36,6 +38,8 @@ export const Root = () => {
         <HashRouter>
             <Routes>
                 <Route path='/' Component={LandingPage} />
+                <Route path='/terms' Component={TermsPage} />
+                <Route path='/privacy' Component={PrivacyPage} />
                 <Route path='/app/*' element={
                     <WalletProvider>
                         <AppRoot />

@@ -1,6 +1,7 @@
 import { Mail } from 'lucide-react'
 import LogoPng from '../../../public/logo.svg'
 import { IconBrandGithub } from '@tabler/icons-react'
+import { Link } from 'react-router'
 
 
 export function Footer() {
@@ -14,8 +15,8 @@ export function Footer() {
                             <span><span className="text-primary">bit</span>lasso</span>
                         </a>
                         <div className='flex flex-col md:gap-1 gap-2'>
-                            <a href='' className='text-sm text-muted-foreground hover:underline'>Terms</a>
-                            <a href='' className='text-sm text-muted-foreground hover:underline'>Privacy</a>
+                            <Link to='/terms' className='text-sm text-muted-foreground hover:underline'>Terms</Link>
+                            <Link to='/privacy' className='text-sm text-muted-foreground hover:underline'>Privacy</Link>
                         </div>
                     </div>
                     <div className="flex items-center gap-5">
