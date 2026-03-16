@@ -19,15 +19,6 @@ const RELAYS = [
     "wss://nos.lol"
 ];
 
-enum EventKind {
-    RECEIPT = 6004,
-    SETTING = 6005,
-    PAYMENT_REQ = 6006,
-    BTC_PAYMENT = 6011,
-    SPARK_REDEEM = 6012,
-    BTC_PRICE = 30010,
-}
-
 export type NostrKeyPair = {
     pub: string
     priv: string
@@ -61,11 +52,11 @@ export const getNostrKeyPair = (mnemonic: string): NostrKeyPair => {
 
 export const registerNotifSettings = async (wallet: Wallet, notifSettings: NotificationSettings) => {
     const event = {
-        kind: EventKind.SETTING,
+        kind: 30078,
         content: JSON.stringify(notifSettings),
         pubkey: wallet.getNostrPublicKey(),
         created_at: Math.floor(Date.now() / 1000),
-        tags: [["n", "0"]] // link to notification settings
+        tags: [["d", "bitlasso/settings"]],
     }
 
     const signedEvent = wallet.signNostrEvent(event);
@@ -74,38 +65,31 @@ export const registerNotifSettings = async (wallet: Wallet, notifSettings: Notif
 
 export const getNotifSettings = async (wallet: Wallet): Promise<NotificationSettings | undefined> => {
     const events = await pool.querySync(RELAYS, {
-        kinds: [EventKind.SETTING],
+        kinds: [30078],
         authors: [wallet.getNostrPublicKey()],
-        "#n": ["0"] // link to notification settings
+        "#d": ["bitlasso/settings"]
     });
     if (events.length > 0) {
         const { content } = events[0]
-        return JSON.parse(content)
+        return JSON.parse(content) as NotificationSettings
     }
     return undefined
 }
 
 export const fetchPaymentsRequest = async (wallet: Wallet): Promise<Payment[]> => {
     const events = await pool.querySync(RELAYS, {
-        kinds: [EventKind.PAYMENT_REQ],
+        kinds: [30078],
+        "#t": ["bitlasso/req"],
         "#p": [wallet.getNostrPublicKey()]
     });
 
     if (events.length == 0) return []
 
     return await Promise.all(events.map(async (e) => {
-        const { id, content, tags, created_at } = e
+        const { id, content, created_at } = e
         let paymentRequest = JSON.parse(content) as Payment
         paymentRequest.id = id
         paymentRequest.createdAt = new Date(created_at * 1000)
-        if (tags.length > 0) {
-            const tagsMap = new Map<string, string>(tags as [string, string][])
-            const nonce = tagsMap.get('nonce')
-            if (nonce) {
-                paymentRequest.nonce = Number(nonce)
-            }
-        }
-
 
         try {
             const paymentDetails = await fetchPaymentDetails(id)
@@ -126,7 +110,7 @@ export const fetchPaymentsRequest = async (wallet: Wallet): Promise<Payment[]> =
 
 export const fetchPaymentRequest = async (id: string): Promise<PaymentRequest> => {
     const events = await pool.querySync(RELAYS, {
-        kinds: [EventKind.PAYMENT_REQ],
+        kinds: [30078],
         ids: [id],
         authors: [import.meta.env.VITE_API_NOSTR_PUB]
     });
@@ -135,22 +119,10 @@ export const fetchPaymentRequest = async (id: string): Promise<PaymentRequest> =
         throw new Error('Payment not found')
     }
 
-    const { content, tags, created_at } = events[0]
+    const { content, created_at } = events[0]
     let paymentRequest = JSON.parse(content) as PaymentRequest
     paymentRequest.id = id
     paymentRequest.createdAt = new Date(created_at * 1000)
-    if (tags.length > 0) {
-        const tagsMap = new Map<string, string>(tags as [string, string][])
-        const nonce = tagsMap.get('nonce')
-        if (nonce) {
-            paymentRequest.nonce = Number(nonce)
-        }
-
-        const tokenId = tagsMap.get('token')
-        if (tokenId) {
-            paymentRequest.tokenId = tokenId
-        }
-    }
 
     const paymentDetails = await fetchPaymentDetails(id)
     if (paymentDetails) {
@@ -170,37 +142,35 @@ export const fetchPaymentRequest = async (id: string): Promise<PaymentRequest> =
 
 const fetchPaymentDetails = async (requestId: string) => {
     const events = await pool.querySync(RELAYS, {
-        kinds: [EventKind.BTC_PAYMENT],
+        kinds: [30078],
         authors: [import.meta.env.VITE_API_NOSTR_PUB],
-        "#e": [requestId]
+        "#d": [`bitlasso/payment/${requestId}`]
     });
     if (events.length == 0) {
         return undefined
     }
 
-    const tagsMap = new Map<string, string>(events[0].tags as [["string", 'string']])
+    const { settlementMode, transaction } = JSON.parse(events[0].content)
+
     return {
-        settlementMode: tagsMap.get('settlementMode') as 'btc' | 'spark',
-        transaction: tagsMap.get('transaction') as string,
-        refPriceId: tagsMap.get('refPriceId') as string
+        settlementMode,
+        transaction,
+        refPriceId: getTagByMarker(events[0].tags, 'e', 'price-ref') as string
     }
 }
 
 const fetchRedeemDetails = async (requestId: string) => {
     const events = await pool.querySync(RELAYS, {
-        kinds: [EventKind.SPARK_REDEEM],
+        kinds: [30078],
         authors: [import.meta.env.VITE_API_NOSTR_PUB],
-        "#e": [requestId]
+        "#d": [`bitlasso/redeem/${requestId}`],
     });
     if (events.length == 0) {
         return undefined
     }
 
-    const tagsMap = new Map<string, string>(events[0].tags as [["string", 'string']])
-    return {
-        redeemAmount: Number(tagsMap.get('redeemAmount')),
-        transaction: tagsMap.get('redeemTransaction'),
-    }
+    const { redeemAmount, redeemTransaction } = JSON.parse(events[0].content)
+    return { redeemAmount, transaction: redeemTransaction }
 }
 
 export type PaymentRequest = {
@@ -222,21 +192,23 @@ export type PaymentRequest = {
 
 export const publishReceiptMetadata = async (wallet: Wallet, transactionId: string, amount: number, createdAt: Date, description?: string, recipient?: string, paymentId?: string) => {
     const event = {
-        kind: EventKind.RECEIPT,
+        kind: 30078,
         content: JSON.stringify({
             amount,
             description,
-            recipient
+            recipient,
+            transactionId
         }),
         pubkey: wallet.getNostrPublicKey(),
         created_at: Math.floor(createdAt.getTime() / 1000),
         tags: [
-            ["d", transactionId]
+            ["d", `bitlasso/receipt/${transactionId}`],
+            ["t", "bitlasso/receipt"]
         ]
     }
 
     if (paymentId) {
-        event.tags.push(["p", paymentId])
+        event.tags.push(["e", paymentId, "", "payment-request"])
     }
 
     const signedEvent = wallet.signNostrEvent(event);
@@ -245,8 +217,9 @@ export const publishReceiptMetadata = async (wallet: Wallet, transactionId: stri
 
 export const listReceipts = async (wallet: Wallet): Promise<Receipt[]> => {
     const events = await pool.querySync(RELAYS, {
-        kinds: [EventKind.RECEIPT],
-        authors: [wallet.getNostrPublicKey()]
+        kinds: [30078],
+        authors: [wallet.getNostrPublicKey()],
+        "#t": ["bitlasso/receipt"]
     });
     if (events.length == 0) {
         return []
@@ -254,26 +227,24 @@ export const listReceipts = async (wallet: Wallet): Promise<Receipt[]> => {
 
     return events.map(e => {
         const { content, tags, created_at } = e
-        const { amount, description, recipient } = JSON.parse(content) as { amount: number, description?: string, recipient?: string }
-        const tagsMap = new Map<string, string>(tags as [["string", 'string']])
+        const { amount, description, recipient, transactionId } = JSON.parse(content)
 
         return {
             date: new Date(created_at * 1000),
-            amount: amount,
-            description: description,
-            recipient: recipient,
-            paymentId: tagsMap.get("p"),
-            transaction: tagsMap.get("d")
+            amount,
+            description,
+            recipient,
+            transaction: transactionId,
+            paymentId: getTagByMarker(tags, "e", "payment-request"),
         } as Receipt
     })
 }
 
 export const getBitcoinPrice = async (id: string): Promise<{ usdPrice: number, date: Date } | undefined> => {
-    const payment = await fetchPaymentDetails(id)
-    if (!payment) return undefined
-
     const events = await pool.querySync(RELAYS, {
-        ids: [payment.refPriceId]
+        kinds: [30078],
+        authors: [import.meta.env.VITE_API_NOSTR_PUB],
+        '#d': [`bitlasso/btc-price/${id}`]
     });
     if (events.length == 0) {
         return undefined
@@ -282,3 +253,7 @@ export const getBitcoinPrice = async (id: string): Promise<{ usdPrice: number, d
     const { usdPrice } = JSON.parse(events[0].content)
     return { usdPrice, date: new Date(events[0].created_at * 1000) }
 }
+
+// const getTag = (tags: string[][], name: string) => tags.find(t => t[0] === name)?.[1]
+const getTagByMarker = (tags: string[][], name: string, marker: string) =>
+    tags.find(t => t[0] === name && t[3] === marker)?.[1]
