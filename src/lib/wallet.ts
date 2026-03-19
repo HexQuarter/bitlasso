@@ -308,12 +308,12 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
     }
 
     async getLightningAddress(): Promise<string> {
-        const bitcoinAddress = await this.getBitcoinAddress()
+        const nostrPubKey = await this.getNostrPublicKey()
         const isAvailable = await this.sdk.checkLightningAddressAvailable({
-            username: bitcoinAddress
+            username: nostrPubKey
         })
         if (isAvailable) {
-            const info = await this.sdk.registerLightningAddress({ username: bitcoinAddress })
+            const info = await this.sdk.registerLightningAddress({ username: nostrPubKey })
             return info.lightningAddress
         }
         else {

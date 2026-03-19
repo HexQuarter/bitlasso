@@ -98,6 +98,12 @@ export const fetchPaymentsRequest = async (wallet: Wallet): Promise<Payment[]> =
                 paymentRequest.settleTx = transaction
                 paymentRequest.settlementMode = settlementMode
             }
+
+            const redeemDetails = await fetchRedeemDetails(id)
+            if (redeemDetails) {
+                paymentRequest.redeemAmount = redeemDetails.redeemAmount
+                paymentRequest.redeemTx = redeemDetails.transaction
+            }
         }
         catch (e) {
             console.log(e)
@@ -257,3 +263,29 @@ export const getBitcoinPrice = async (id: string): Promise<{ usdPrice: number, d
 // const getTag = (tags: string[][], name: string) => tags.find(t => t[0] === name)?.[1]
 const getTagByMarker = (tags: string[][], name: string, marker: string) =>
     tags.find(t => t[0] === name && t[3] === marker)?.[1]
+
+export const subscribeRedeem = (id: string, callback: (redeemAmount: number, redeemTransaction: string) => void) => {
+    pool.subscribe(RELAYS, {
+        kinds: [30078],
+        authors: [import.meta.env.VITE_API_NOSTR_PUB],
+        "#d": [`bitlasso/redeem/${id}`]
+    }, {
+        onevent(evt): void {
+            const { redeemAmount, redeemTransaction } = JSON.parse(evt.content)
+            callback(redeemAmount, redeemTransaction)
+        }
+    })
+}
+
+export const subscribePayment = (requestId: string, callback: (transaction: string, settlementMode: string) => void ) => {
+     pool.subscribe(RELAYS, {
+        kinds: [30078],
+        authors: [import.meta.env.VITE_API_NOSTR_PUB],
+        "#d": [`bitlasso/payment/${requestId}`]
+    }, {
+        onevent(evt): void {
+            const { settlementMode, transaction } = JSON.parse(evt.content)
+            callback(transaction, settlementMode)
+        }
+    })
+}

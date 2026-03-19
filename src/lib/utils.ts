@@ -15,8 +15,8 @@ export function bin2hex(input: Uint8Array<ArrayBufferLike> | undefined): any {
   return Array.from(input, b => b.toString(16).padStart(2, "0")).join("");
 }
 
-export function shortenAddress(address: string) {
-  return `${address.slice(0, 10)}...${address.slice(-10)}`
+export function shortenAddress(address: string, char: number = 10) {
+  return `${address.slice(0, char)}...${address.slice(-char)}`
 }
 
 export function sparkBech32ToHex(bech32Id: string) {

@@ -19,7 +19,7 @@ import { AlertTriangle, AlertTriangleIcon, Coins, ExternalLink, FileText, MoreHo
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { RevenueChart } from "@/components/app/revenue-chart"
-import { fetchPaymentsRequest, getNotifSettings, listReceipts, publishReceiptMetadata } from "@/lib/nostr"
+import { fetchPaymentsRequest, getNotifSettings, listReceipts, publishReceiptMetadata, subscribePayment, subscribeRedeem } from "@/lib/nostr"
 import { Spinner } from "@/components/ui/spinner"
 import { getSettings, getStatus, publishPaymentRequest, type Settings } from "@/lib/api"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -121,6 +121,7 @@ export const DashboardPage = () => {
                 wallet.getSparkAddress(),
                 wallet.getLightningAddress(),
             ])
+            console.log(ln)
             setAddresses({ btc, spark, ln })
             setWalletLoading(false)
         })
@@ -173,6 +174,7 @@ export const DashboardPage = () => {
                     })
 
                     await fetchData(wallet)
+
 
                     wallet.on('synced', async () => {
                         await updateBalance(wallet)
@@ -229,6 +231,28 @@ export const DashboardPage = () => {
             }
         }
         setPaymentRequests(paymentRequests)
+
+        paymentRequests.forEach(payment => {
+            subscribePayment(payment.id, (settleTx, settlementMode) => {
+                setPaymentRequests(prev =>
+                    prev.map(p =>
+                        p.id === payment.id
+                            ? { ...p, settleTx, settlementMode }
+                            : p
+                    )
+                );
+            })
+
+            subscribeRedeem(payment.id, (redeemAmount, redeemTx) => {
+                setPaymentRequests(prev =>
+                    prev.map(p =>
+                        p.id === payment.id
+                            ? { ...p, redeemAmount, redeemTx }
+                            : p
+                    )
+                );
+            })
+        })
     }
 
     const refreshReceipts = async () => {
