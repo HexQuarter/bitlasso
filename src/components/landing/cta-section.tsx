@@ -25,7 +25,7 @@ export function CtaSection() {
           <p
             className={`mx-auto mt-8 max-w-lg text-pretty text-lg leading-[1.7] text-muted-foreground transition-all duration-1000 delay-150 ${isInView ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"}`}
           >
-            Start issuing work receipts and let loyalty grow naturally. Bitcoin-native, self-custodial, and built for the way you work.
+            Start issuing work receipts. Watch loyalty grow.
           </p>
 
           <div className={`mt-12 transition-all duration-1000 delay-300 ${isInView ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"}`}>
@@ -33,7 +33,7 @@ export function CtaSection() {
               to="/app"
               className="group inline-flex items-center gap-3 rounded-full bg-foreground px-10 py-4.5 text-[15px] font-medium text-background transition-all duration-300 hover:shadow-lg hover:shadow-foreground/10"
             >
-              Create Your First Checkout
+              Create your first checkout
               <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
             </Link>
           </div>

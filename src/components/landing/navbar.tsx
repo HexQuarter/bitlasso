@@ -6,10 +6,10 @@ import { Menu, X } from "lucide-react"
 const links = [
     { label: "Problem", href: "#problem" },
     { label: "How It Works", href: "#how-it-works" },
-    { label: "Why Bitcoin", href: "#why-bitcoin" },
-    { label: "oRWA", href: "#orwa" },
-    { label: "Decentralized", href: "#decentralized" },
-    { label: "Self-custodial", href: "#self-custody"},
+    { label: "Real Rewards", href: "#why-bitcoin" },
+    // { label: "oRWA", href: "#orwa" },
+    // { label: "Decentralized", href: "#decentralized" },
+    // { label: "Self-custodial", href: "#self-custody"},
     { label: "Pricing", href: "#pricing" },
 ]
 
@@ -50,7 +50,7 @@ export function Navbar() {
                         to="/app"
                         className="hidden rounded-full bg-foreground px-6 py-2 text-[13px] font-medium text-background transition-all duration-300 hover:opacity-85 md:inline-flex"
                     >
-                        Open your loop
+                        Build your loop
                     </Link>
 
                     <button
@@ -81,7 +81,7 @@ export function Navbar() {
                             onClick={() => setOpen(false)}
                             className="mt-2 rounded-full bg-foreground px-6 py-3 text-center text-sm font-medium text-background"
                         >
-                            Open your loop
+                            Build your loop
                         </Link>
                     </div>
                 </div>

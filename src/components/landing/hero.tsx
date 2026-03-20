@@ -49,22 +49,22 @@ export function HeroSection() {
                             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
                             <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
                         </span>
-                        <span className="font-mono text-[11px] font-medium tracking-[0.15em] text-muted-foreground uppercase">Bitcoin-backed & decentralized</span>
+                        <span className="font-mono text-[11px] font-medium tracking-[0.15em] text-muted-foreground uppercase">Bitcoin-native payments and loyalty</span>
                     </div>
                 </div>
 
                 {/* Center - Main headline */}
                 <div className="animate-fade-up opacity-0 delay-100 my-auto flex flex-col items-start mt-10">
                     <h1 className="max-w-5xl font-serif text-[clamp(3rem,8vw,8.5rem)] font-normal leading-[0.95] tracking-[-0.02em] text-foreground">
-                        Turn completed
+                        Turn 
                         <br />
-                        <span className="italic text-primary">work</span> into
+                        <span className="italic text-primary">proof of work</span> into
                         <br />
-                        repeat business
+                        loyalty
                     </h1>
 
                     <p className="mt-8 max-w-lg text-pretty text-lg leading-[1.7] text-muted-foreground lg:mt-10 lg:text-xl">
-                        Create Bitcoin payment requests and mint self-custodial earned credits. No subscriptions. No custody. No lock-in.
+                       Real payments. Real rewards. For value that lasts.
                     </p>
 
                     <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center lg:mt-12">
@@ -72,14 +72,14 @@ export function HeroSection() {
                             to="/app"
                             className="group inline-flex items-center gap-3 rounded-full bg-foreground px-8 py-4 text-[15px] font-medium text-background transition-all duration-300 hover:shadow-lg hover:shadow-foreground/10"
                         >
-                            Start Issuing Checkouts
+                            Build your loop
                             <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
                         </Link>
                         <Link
                             to="#how-it-works"
                             className="inline-flex items-center gap-2 px-4 py-4 text-[15px] font-medium text-muted-foreground transition-colors duration-300 hover:text-foreground"
                         >
-                            See How It Works
+                            See how it works
                             <ArrowRight className="h-3.5 w-3.5" />
                         </Link>
                     </div>
