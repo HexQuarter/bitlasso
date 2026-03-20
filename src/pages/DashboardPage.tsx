@@ -399,7 +399,12 @@ export const DashboardPage = () => {
             data.paymentId
         )
 
-        await refreshReceipts()
+        await new Promise<void>((r) => {
+            setTimeout(async () => {
+                await refreshReceipts()
+                r()
+            }, 1000)
+        })
     }
 
     const handlePurchaseCredits = async (amount: number) => {
