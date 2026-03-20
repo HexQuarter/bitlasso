@@ -58,9 +58,8 @@ export function HeroSection() {
                     <h1 className="max-w-5xl font-serif text-[clamp(3rem,8vw,8.5rem)] font-normal leading-[0.95] tracking-[-0.02em] text-foreground">
                         Turn 
                         <br />
-                        <span className="italic text-primary">proof of work</span> into
-                        <br />
-                        loyalty
+                        <span className="italic text-primary">proof of work</span> 
+                        <br />into loyalty
                     </h1>
 
                     <p className="mt-8 max-w-lg text-pretty text-lg leading-[1.7] text-muted-foreground lg:mt-10 lg:text-xl">
