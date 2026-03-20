@@ -107,12 +107,12 @@ export const LoginPage = () => {
                                 </div>
                                 {!showPassphraseForm && !showCreateWalletForm &&
                                     <div className="flex flex-col lg:flex-row items-center justify-center gap-2">
-                                        <button className="justify-center flex items-center gap-2 w-full rounded-full bg-foreground px-8 py-4 text-[15px] font-medium text-background transition-all duration-300 hover:shadow-lg hover:shadow-foreground/10 hover:bg-primary hover:cursor-pointer" onClick={() => setShowPassphraseForm(true)}>
-                                            Connect wallet
+                                        <button className="justify-center flex items-center gap-2 w-full rounded-full bg-foreground px-8 py-4 text-[15px] font-medium text-background transition-all duration-300 hover:shadow-lg hover:shadow-foreground/10 hover:bg-primary hover:cursor-pointer"  onClick={() => setShowCreateWalletForm(true)}>
+                                            Create wallet
                                             <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
                                         </button>
-                                        <button className="justify-center flex items-center gap-2 w-full rounded-full bg-none text-primary px-8 py-4 text-[15px] font-medium text-background transition-all duration-300 hover:shadow-lg hover:border-primary border-1 hover:bg-primary/10 hover:shadow-foreground/10 hover:cursor-pointer" onClick={() => setShowCreateWalletForm(true)}>
-                                            Create wallet
+                                        <button className="justify-center flex items-center gap-2 w-full rounded-full bg-none text-primary px-8 py-4 text-[15px] font-medium text-background transition-all duration-300 hover:shadow-lg hover:border-primary border-1 hover:bg-primary/10 hover:shadow-foreground/10 hover:cursor-pointer" onClick={() => setShowPassphraseForm(true)}>
+                                            Connect wallet
                                             <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
                                         </button>
                                     </div>
