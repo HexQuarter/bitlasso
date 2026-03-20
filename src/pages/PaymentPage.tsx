@@ -407,7 +407,7 @@ export const PaymentPage: React.FC = () => {
                                     <div className="flex flex-col gap-2">
                                         <div className="flex justify-between items-end">
                                             <p className="text-4xl font-serif flex gap-2 items-end">
-                                                {alreadyRedeemedTokens && <span className="line-through text-xl ">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount + alreadyRedeemedTokens)}</span>}
+                                                {paymentRequest.redeemAmount && <span className="line-through text-xl ">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount + paymentRequest.redeemAmount)}</span>}
                                                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount)}
                                             </p>
                                             <span className="bg-primary/20 px-2 py-1 rounded-lg text-primary border-primary/20 border font-mono text-xs">{btcAmount} BTC</span>
