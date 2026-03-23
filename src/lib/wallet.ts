@@ -4,7 +4,6 @@ import { getNostrKeyPair, type NostrKeyPair } from "./nostr";
 import { uint8ArrayToNum } from "./utils";
 import { bytesToHex, hexToBytes } from "nostr-tools/utils";
 import { finalizeEvent, nip44, type EventTemplate, type VerifiedEvent } from "nostr-tools";
-import { toast } from "sonner";
 export const BURN_PUBLIC_KEY =
     "020202020202020202020202020202020202020202020202020202020202020202";
 
@@ -94,7 +93,7 @@ interface _SparkWallet {
     fetchPrices(): Promise<PriceRate[]>
     on<K extends keyof BreezEvent>(eventName: K, callback: BreezEvent[K]): void
     validAddress(string: string, method?: 'spark' | 'lightning' | 'bitcoin'): Promise<boolean>
-    signMessage(message: string): Promise<{ signature: string, pubkey: string}>
+    signMessage(message: string): Promise<{ signature: string, pubkey: string }>
     disconnect(): Promise<void>
     ecdhNostrKey(pubKey: string): Uint8Array | undefined
 }
@@ -249,17 +248,6 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
         }
 
         instance.nostrKeypair = getNostrKeyPair(mnemonic)
-
-        instance.on('paymentReceived', (payment) => {
-            if (payment.method != 'token') {
-                toast.success(`Received payment of ${Number(payment.amount)} sats`)
-            }
-        })
-        instance.on('paymentPending', (payment) => {
-            if (payment.paymentType == 'receive') {
-                toast.info(`Payment incoming. Waiting for confirmation...`)
-            }
-        })
 
         return instance;
     }
@@ -733,7 +721,7 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
         return nip44.getConversationKey(hexToBytes(this.nostrKeypair?.pub), pubKey)
     }
 
-    async signMessage(message: string): Promise<{ signature: string, pubkey: string}> {
+    async signMessage(message: string): Promise<{ signature: string, pubkey: string }> {
         const signMessageResponse = await this.sdk.signMessage({
             message,
             compact: true

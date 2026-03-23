@@ -191,8 +191,7 @@ export const DashboardPage = () => {
 
                     await fetchData(wallet)
 
-
-                    wallet.on('synced', async () => {
+                    const refreshBalance = async () => {
                         await updateBalance(wallet)
 
                         const payments = await wallet.listPayments()
@@ -200,24 +199,23 @@ export const DashboardPage = () => {
 
                         if (tokenMetadata) {
                             refreshIssuanceStats(wallet, tokenMetadata)
+                        }
+                    }
+
+                    wallet.on('synced', refreshBalance)
+                    wallet.on('paymentPending', (payment) => {
+                        if (payment.paymentType == 'receive') {
+                            toast.info(`Payment incoming. Waiting for confirmation...`)
                         }
                     })
-
-                    wallet.on('paymentReceived', async () => {
-                        await updateBalance(wallet)
-                        const payments = await wallet.listPayments()
-                        setWalletHistory(payments)
-                        if (tokenMetadata) {
-                            refreshIssuanceStats(wallet, tokenMetadata)
+                    wallet.on('paymentReceived', async (payment) => {
+                        if (payment.method != 'token') {
+                            toast.success(`Received payment of ${Number(payment.amount)} sats`)
                         }
+                        await refreshBalance()
                     })
                     wallet.on('paymentSent', async () => {
-                        await updateBalance(wallet)
-                        const payments = await wallet.listPayments()
-                        setWalletHistory(payments)
-                        if (tokenMetadata) {
-                            refreshIssuanceStats(wallet, tokenMetadata)
-                        }
+                        await refreshBalance()
                     })
                 }
                 else {
