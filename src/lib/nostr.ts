@@ -191,7 +191,7 @@ export const fetchPaymentRequest = async (settings: Settings, id: string): Promi
     const events = await fetchAndSync({
         kinds: [30078],
         ids: [id],
-        authors: [settings.npub]
+        authors: [settings.publicKey]
     });
 
     if (events.length == 0) {
@@ -222,7 +222,7 @@ export const fetchPaymentRequest = async (settings: Settings, id: string): Promi
 const fetchPaymentDetails = async (settings: Settings, requestId: string) => {
     const events = await fetchAndSync({
         kinds: [30078],
-        authors: [settings.npub],
+        authors: [settings.publicKey],
         "#d": [`bitlasso/payment/${requestId}`]
     });
     if (events.length == 0) {
@@ -241,7 +241,7 @@ const fetchPaymentDetails = async (settings: Settings, requestId: string) => {
 const fetchRedeemDetails = async (settings: Settings, requestId: string) => {
     const events = await fetchAndSync({
         kinds: [30078],
-        authors: [settings.npub],
+        authors: [settings.publicKey],
         "#d": [`bitlasso/redeem/${requestId}`],
     });
     if (events.length == 0) {
@@ -322,7 +322,7 @@ export const listReceipts = async (wallet: Wallet): Promise<Receipt[]> => {
 export const getBitcoinPrice = async (settings: Settings, id: string): Promise<{ usdPrice: number, date: Date } | undefined> => {
     const events = await fetchAndSync({
         kinds: [30078],
-        authors: [settings.npub],
+        authors: [settings.publicKey],
         '#d': [`bitlasso/btc-price/${id}`]
     });
     if (events.length == 0) {
@@ -340,7 +340,7 @@ const getTagByMarker = (tags: string[][], name: string, marker: string) =>
 export const subscribeRedeem = (settings: Settings, id: string, callback: (redeemAmount: number, redeemTransaction: string) => void) => {
     subscribeAndSync({
         kinds: [30078],
-        authors: [settings.npub],
+        authors: [settings.publicKey],
         "#d": [`bitlasso/redeem/${id}`]
     }, (evt) => {
         const { redeemAmount, redeemTransaction } = JSON.parse(evt.content)
@@ -351,7 +351,7 @@ export const subscribeRedeem = (settings: Settings, id: string, callback: (redee
 export const subscribePayment = (settings: Settings, requestId: string, callback: (transaction: string, settlementMode: string) => void) => {
     subscribeAndSync({
         kinds: [30078],
-        authors: [settings.npub],
+        authors: [settings.publicKey],
         "#d": [`bitlasso/payment/${requestId}`]
     }, (evt) => {
         const { settlementMode, transaction } = JSON.parse(evt.content)

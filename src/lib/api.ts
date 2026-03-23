@@ -26,7 +26,7 @@ export const getStatus = async (): Promise<{ sparkStatus: string }> => {
     return await response.json()
 }
 
-export type Settings = { tokenAddress: string, bundles: Bundle[], address: string, npub: string }
+export type Settings = { tokenAddress: string, bundles: Bundle[], address: string, npub: string, publicKey: string }
 export const getSettings = async (): Promise<Settings> => {
     const response = await fetch(getApiUrl(`/settings`))
     if (!response.ok) {
