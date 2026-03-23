@@ -25,7 +25,6 @@ import { getStatus, publishPaymentRequest, type Settings } from "@/lib/api"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useNavigate } from "react-router"
 import { IconMessageDollar } from "@tabler/icons-react"
-import pLimit from 'p-limit';
 import { usePostHog } from "@posthog/react";
 import { useSettings } from "@/hooks/use-settings"
 
@@ -72,34 +71,49 @@ export const DashboardPage = () => {
         }
     }
 
-    const claimPaymentRequestBalances = async (sparkAddress: string, paymentRequests: Payment[]) => {
+    const claimPaymentRequestBalances = async () => {
         if (!wallet) return
 
-        let claimPromises: Promise<void>[] = []
-        const limit = pLimit(1);
+        const claimableNonces = paymentRequests
+            .filter(p => p.settleTx !== undefined)  // only settled
+            .map(p => p.nonce)
 
-        for (let payment of paymentRequests) {
-            claimPromises.push(limit(async () => {
-                const requestSdk = await wallet.withAccountNumber(payment.nonce)
+        if (claimableNonces.length === 0) return
 
-                const unclaimedBitcoinDeposits = await requestSdk.listUnclaimDeposits()
-
-                await Promise.all(unclaimedBitcoinDeposits.map(d =>
-                    requestSdk.claimDeposit(d.txid, d.vout)
-                ))
-
-                const balance = await requestSdk.getBalance()
-                const satsBalance = Number(balance.balance)
-
-                if (satsBalance > 0) {
-                    console.log('claiming from sub account', payment.nonce, satsBalance / 100_000_000)
-                    await requestSdk.sendSparkPayment(sparkAddress, satsBalance)
-                }
-                await requestSdk.disconnect()
-            }))
+        for (const nonce of claimableNonces) {
+            const sweptKey = `BITLASSO_SWEPT_${nonce}`
+            try {
+                await claimBalance(wallet, nonce)
+                localStorage.setItem(sweptKey, 'true')
+            } catch (error) {
+                console.error('Error claiming for nonce', nonce, error)
+            }
         }
+    }
 
-        await Promise.all(claimPromises);
+    const claimBalance = async (wallet: Wallet, nonce: number) => {
+        // Check local cache first
+        const sweptKey = `BITLASSO_SWEPT_${nonce}`
+        if (localStorage.getItem(sweptKey) === 'true') return
+
+        const requestSdk = await wallet.withAccountNumber(nonce)
+
+        const unclaimedBitcoinDeposits = await requestSdk.listUnclaimDeposits()
+
+        await Promise.all(unclaimedBitcoinDeposits.map(d =>
+            requestSdk.claimDeposit(d.txid, d.vout)
+        ))
+
+        const balance = await requestSdk.getBalance()
+        const satsBalance = Number(balance.balance)
+
+        if (satsBalance > 0) {
+            const sparkAddress = await wallet.getSparkAddress()
+            console.log('claiming from sub account', nonce, satsBalance)
+            await requestSdk.sendSparkPayment(sparkAddress, satsBalance)
+            localStorage.setItem(sweptKey, 'true')
+        }
+        await requestSdk.disconnect()
     }
 
     const fetchData = async (wallet: Wallet) => {
@@ -131,6 +145,8 @@ export const DashboardPage = () => {
             await refreshReceipts()
             setPaymentRequestLoading(false)
             setReceiptLoading(false)
+
+            claimPaymentRequestBalances()
         })
 
         setTimeout(async () => {
@@ -215,25 +231,18 @@ export const DashboardPage = () => {
             })
     }, [wallet])
 
-    useEffect(() => {
-        if (!addresses) return
-
-        claimPaymentRequestBalances(addresses.spark, paymentRequests)
-    }, [addresses, paymentRequests])
 
     const refreshPaymentRequests = async () => {
         if (!wallet || !settings) return
         const paymentRequests = await fetchPaymentsRequest(settings, wallet)
         if (paymentRequests.length > 0) {
-            const last = paymentRequests.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).at(0)
-            if (last) {
-                localStorage.setItem("BITLASSO_PAYMENT_NONCE", last.nonce.toString())
-            }
+            const maxNonce = Math.max(...paymentRequests.map(p => p.nonce))
+            localStorage.setItem("BITLASSO_PAYMENT_NONCE", maxNonce.toString())
         }
         setPaymentRequests(paymentRequests)
 
         paymentRequests.forEach(payment => {
-            subscribePayment(settings as Settings, payment.id, (settleTx, settlementMode) => {
+            subscribePayment(settings as Settings, payment.id, async (settleTx, settlementMode) => {
                 setPaymentRequests(prev =>
                     prev.map(p =>
                         p.id === payment.id
@@ -241,6 +250,13 @@ export const DashboardPage = () => {
                             : p
                     )
                 );
+
+                // Claim immediately on settlement event
+                const sweptKey = `BITLASSO_SWEPT_${payment.nonce}`
+                if (localStorage.getItem(sweptKey) !== 'true') {
+                    await claimBalance(wallet, payment.nonce)
+                    localStorage.setItem(sweptKey, 'true')
+                }
             })
 
             subscribeRedeem(settings as Settings, payment.id, (redeemAmount, redeemTx) => {
@@ -368,7 +384,14 @@ export const DashboardPage = () => {
             })
         }
 
-        const nonce = Number(localStorage.getItem('BITLASSO_PAYMENT_NONCE') || '1') + 1
+        const currentMax = Math.max(
+            Number(localStorage.getItem('BITLASSO_PAYMENT_NONCE') || '1'),
+            ...paymentRequests.map(p => p.nonce) // use in-memory state as source of truth
+        )
+        const nonce = currentMax + 1
+
+        localStorage.setItem('BITLASSO_PAYMENT_NONCE', nonce.toString())
+
         await publishPaymentRequest(txId, wallet, nonce, data.amount, tokenMetadata.identifier, data.discountRate, data.description)
         await refreshPaymentRequests()
         posthog?.capture('payment_request_created', {
@@ -377,19 +400,6 @@ export const DashboardPage = () => {
             paid_with_credits: !data.feeSats,
         })
         toast.success('Payment request created successfully')
-    }
-
-    const handleClaimPaymentRequest = async (id: string) => {
-        if (!addresses) return
-
-        const paymentRequest = paymentRequests.find(p => p.id == id) as Payment
-        if (!paymentRequest || !wallet) return
-
-        const requestSdk = await wallet.withAccountNumber(paymentRequest.nonce)
-
-        await send(requestSdk, BTCAsset, paymentRequest.claimable, addresses.spark, 'spark')
-        posthog?.capture('payment_request_claimed', { amount_sats: paymentRequest.claimable, payment_id: id })
-        await refreshPaymentRequests()
     }
 
     const handleSend = async (method: 'spark' | 'lightning' | 'bitcoin', asset: Asset, amount: number, recipient: string) => {
@@ -717,11 +727,9 @@ export const DashboardPage = () => {
                                         id: r.id,
                                         redeemAmount: r.redeemAmount,
                                         redeemTx: r.redeemTx,
-                                        claimable: r.claimable,
                                         nonce: r.nonce,
                                         settlementMode: r.settlementMode
                                     }))}
-                                    onClaim={handleClaimPaymentRequest}
                                     onDeriveReceipt={handleIssueReceipt}
                                     paymentRequests={paymentRequests}
                                     receipts={receipts} />

@@ -1,10 +1,9 @@
 import { type ColumnDef } from "@tanstack/react-table"
 
 import { DataTable } from "@/components/ui/data-table"
-import React, { useState } from "react"
+import React from "react"
 import { ExternalLink, MoreHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Spinner } from "@/components/ui/spinner"
 import { IssueReceiptForm, type IssueReceiptData } from "./issue-receipt"
 import type { Receipt } from "./receipt-table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -19,12 +18,11 @@ export type Payment = {
     redeemAmount?: number,
     redeemTx?: string,
     id: string
-    claimable: number
     nonce: number
     settlementMode?: string
 }
 
-const getColumns = (onClaim: (id: string) => Promise<void>, onDeriveReceipt: (data: IssueReceiptData) => Promise<void>, paymentRequests: Payment[], receipts: Receipt[]) => {
+const getColumns = (onDeriveReceipt: (data: IssueReceiptData) => Promise<void>, paymentRequests: Payment[], receipts: Receipt[]) => {
     return [
         {
             accessorKey: "createdAt",
@@ -119,17 +117,6 @@ const getColumns = (onClaim: (id: string) => Promise<void>, onDeriveReceipt: (da
             accessorKey: "actions",
             header: "",
             cell: ({ row }) => {
-                const [claimLoading, setClaimLoading] = useState(false)
-
-                const handleClaim = async () => {
-                    try {
-                        setClaimLoading(true)
-                        await onClaim(row.original.id)
-                    }
-                    catch (e) { setClaimLoading(false) }
-                    finally { setClaimLoading(false) }
-                }
-
                 const canDeriveReceipts = row.original.settleTx && !receipts.find(r => r.paymentId == row.original.id)
                 const derivedReceipt = receipts.find(r => r.paymentId == row.original.id)
                 const deriveReceiptTx = derivedReceipt ? `https://sparkscan.io/tx/${derivedReceipt.transaction}` : ''
@@ -155,7 +142,7 @@ const getColumns = (onClaim: (id: string) => Promise<void>, onDeriveReceipt: (da
                     redeemTxUrl = `https://sparkscan.io/tx/${redeemTx}`
                 }
 
-                const actionToDo = canDeriveReceipts || row.original.claimable > 0
+                const actionToDo = canDeriveReceipts
 
                 return (
                     <DropdownMenu>
@@ -177,7 +164,6 @@ const getColumns = (onClaim: (id: string) => Promise<void>, onDeriveReceipt: (da
                             <DropdownMenuSeparator />
                             {!row.original.settleTx && <DropdownMenuItem onClick={() => window.open(`#/payment/${row.original.id}`, '_blank')}>Open payment's page <ExternalLink /></DropdownMenuItem>}
                             {canDeriveReceipts && <IssueReceiptForm buttonVariant='none' onSubmit={onDeriveReceipt} buttonText="Derive receipt" amount={row.original.amount} description={row.original.description} paymentId={row.original.id} paymentRequests={paymentRequests} />}
-                            {row.original.claimable > 0 && <DropdownMenuItem onClick={handleClaim} className="text-primary font-semibold">Claim {row.original.claimable} BTC {claimLoading && <Spinner />}</DropdownMenuItem>}
                             {settleTxUrl && <DropdownMenuItem onClick={() => window.open(settleTxUrl, '_blank')}>Open settlement transaction <ExternalLink /></DropdownMenuItem>}
                             {redeemTxUrl && <DropdownMenuItem onClick={() => window.open(redeemTxUrl, '_blank')}>Open redeem transaction <ExternalLink /></DropdownMenuItem>}
                             {derivedReceipt && <DropdownMenuItem onClick={() => window.open(deriveReceiptTx, '_blank')}>Open receipt mint transaction <ExternalLink /></DropdownMenuItem>}
@@ -193,14 +179,13 @@ const getColumns = (onClaim: (id: string) => Promise<void>, onDeriveReceipt: (da
 
 type Props = {
     data: Payment[]
-    onClaim: (id: string) => Promise<void>
     onDeriveReceipt: (data: IssueReceiptData) => Promise<void>,
     paymentRequests: Payment[],
     receipts: Receipt[]
 }
 
-export const PaymentTable: React.FC<Props> = ({ data, onClaim, onDeriveReceipt, paymentRequests, receipts }) => {
+export const PaymentTable: React.FC<Props> = ({ data, onDeriveReceipt, paymentRequests, receipts }) => {
     return (
-        <DataTable columns={getColumns(onClaim, onDeriveReceipt, paymentRequests, receipts)} data={data} />
+        <DataTable columns={getColumns(onDeriveReceipt, paymentRequests, receipts)} data={data} />
     )
 }
