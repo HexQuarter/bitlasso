@@ -109,7 +109,7 @@ export const PaymentPage: React.FC = () => {
                     setFetchErrorDetails('The payment request you are trying to access is not accessible. Please check the link or contact the merchant for assistance. If the issue persists please contact us for additional support.')
                 })
         }
-    }, [])
+    }, [settings])
 
     useEffect(() => {
         if (!paymentRequest || !settings) return

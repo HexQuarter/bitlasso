@@ -65,7 +65,7 @@ export const CertPage: React.FC = () => {
                     setFetchErrorDetails('The payment request you are trying to access does not exist. Please check the link or contact the merchant for assistance.')
                 })
         }
-    }, [])
+    }, [settings])
 
     return (
         <div className="bg-gray-50 h-screen">
