@@ -25,7 +25,7 @@ export const LoginPage = () => {
         const wallet = await storeWallet(mnemonic)
         const sparkAddress = await wallet.getSparkAddress()
         posthog?.identify(sparkAddress)
-        posthog?.capture('wallet_connected')
+        setTimeout(() => posthog?.capture('wallet_connected'))
 
         setLoading(false)
         navigate('/app/dashboard', { replace: true })

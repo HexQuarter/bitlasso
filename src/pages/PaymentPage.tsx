@@ -162,7 +162,7 @@ export const PaymentPage: React.FC = () => {
         }
 
         setWallet(address);
-        posthog?.capture('wallet_connected_for_discount', { payment_id: paymentRequest.id })
+        setTimeout(() => posthog?.capture('wallet_connected_for_discount', { payment_id: paymentRequest.id }))
 
         setLoadingTokens(true)
 
@@ -204,10 +204,10 @@ export const PaymentPage: React.FC = () => {
             setRedeemError(response.error.message)
             return
         }
-        posthog?.capture('tokens_redeemed', {
+        setTimeout(() => posthog?.capture('tokens_redeemed', {
             payment_id: paymentRequest.id,
             tokens_redeemed: redeemedTokens,
-        })
+        }))
     }
 
     const payWithXVerse = async () => {
@@ -226,7 +226,7 @@ export const PaymentPage: React.FC = () => {
                 return
             }
 
-            posthog?.capture('payment_completed', { payment_method: 'spark', amount_btc: btcAmount, payment_id: paymentRequest?.id })
+            setTimeout(() => posthog?.capture('payment_completed', { payment_method: 'spark', amount_btc: btcAmount, payment_id: paymentRequest?.id }))
             setPaymentMade(true)
         }
         else if (selectedPaymentTab == 'btc') {
@@ -240,14 +240,14 @@ export const PaymentPage: React.FC = () => {
                 return
             }
 
-            posthog?.capture('payment_completed', { payment_method: 'btc', amount_btc: btcAmount, payment_id: paymentRequest?.id })
+            setTimeout(() => posthog?.capture('payment_completed', { payment_method: 'btc', amount_btc: btcAmount, payment_id: paymentRequest?.id }))
             setPaymentMade(true)
         }
     }
 
     const handleSelectPaymentChange = (tab: TabType) => {
         setSelectedPaymentTab(tab)
-        posthog?.capture('payment_method_selected', { payment_method: tab, payment_id: paymentRequest?.id })
+        setTimeout(() => posthog?.capture('payment_method_selected', { payment_method: tab, payment_id: paymentRequest?.id }))
         if (tab == 'spark') {
             setPaymentAddress(paymentRequest?.sparkAddress)
         }

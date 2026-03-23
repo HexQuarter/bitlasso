@@ -142,8 +142,8 @@ export const DashboardPage = () => {
 
         setTimeout(async () => {
             await refreshPaymentRequests()
-            await refreshReceipts()
             setPaymentRequestLoading(false)
+            await refreshReceipts()
             setReceiptLoading(false)
 
             claimPaymentRequestBalances()
@@ -285,7 +285,7 @@ export const DashboardPage = () => {
         try {
             const { tokenId } = await wallet.createToken(name, symbol, 0n, 1, false)
             console.log('Token created with ID:', tokenId)
-            posthog?.capture('loyalty_token_created', { token_name: name, token_symbol: symbol })
+            setTimeout(() => posthog?.capture('loyalty_token_created', { token_name: name, token_symbol: symbol }))
 
             const metadata = await wallet.getTokenMetadata()
             setTokenMetadata(metadata)
@@ -332,11 +332,11 @@ export const DashboardPage = () => {
             ...prevReceipts
         ])
 
-        posthog?.capture('receipt_issued', {
+        setTimeout(() => posthog?.capture('receipt_issued', {
             amount: data.mintableTokens,
             has_recipient: !!(data.recipientAddress && data.recipientAddress !== ''),
             token_symbol: tokenMetadata?.symbol,
-        })
+        }))
         await refreshIssuanceStats(wallet, tokenMetadata as TokenMetadata)
     }
 
@@ -392,11 +392,11 @@ export const DashboardPage = () => {
 
         await publishPaymentRequest(txId, wallet, nonce, data.amount, tokenMetadata.identifier, data.discountRate, data.description)
         await refreshPaymentRequests()
-        posthog?.capture('payment_request_created', {
+        setTimeout(() => posthog?.capture('payment_request_created', {
             amount_usd: data.amount,
             discount_rate: data.discountRate,
             paid_with_credits: !data.feeSats,
-        })
+        }))
         toast.success('Payment request created successfully')
     }
 

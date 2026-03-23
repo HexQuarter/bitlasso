@@ -61,10 +61,10 @@ export const SettingsPage = () => {
         if (!wallet) return
         setSaveLoading(true)
         await registerNotifSettings(wallet, notificationSettings)
-        posthog?.capture('notification_settings_saved', {
+        setTimeout(() => posthog?.capture('notification_settings_saved', {
             has_email: !!(notificationSettings.email && notificationSettings.email !== ''),
             has_npub: !!(notificationSettings.npub && notificationSettings.npub !== ''),
-        })
+        }))
 
         setTimeout(() => {
             setSaveLoading(false)
@@ -74,7 +74,7 @@ export const SettingsPage = () => {
     const handleRevealSecret = () => {
         const _mnemonic = localStorage.getItem('BITLASSO_MNEMONIC') as string
         setMnemonic(_mnemonic.split(' '))
-        posthog?.capture('wallet_secret_revealed')
+        setTimeout(() => posthog?.capture('wallet_secret_revealed'))
     }
 
     const copy = async () => {
