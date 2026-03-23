@@ -12,11 +12,11 @@ export const AssetSelector: React.FC<Props> = ({ assets, onSelected }) => {
             <p className="text-sm">Select an asset</p>
             <Select onValueChange={(val: string) => onSelected(assets[parseInt(val)])}>
                 <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Bitcoin (BTC)" />
+                    <SelectValue placeholder="Bitcoin" />
                 </SelectTrigger>
                 <SelectContent>
                     {assets.map((a, i) => (
-                        <SelectItem key={i} value={i.toString()}>{a.name} ({a.symbol})</SelectItem>
+                        <SelectItem key={i} value={i.toString()}>{a.name} {a.name.toLowerCase() != 'bitcoin' ? `(${a.symbol})`: ''}</SelectItem>
                     ))}
                 </SelectContent>
             </Select>
