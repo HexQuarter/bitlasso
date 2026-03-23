@@ -6,6 +6,7 @@ import { CreateWalletForm } from "@/components/app/create-wallet-form";
 import { useNavigate } from "react-router";
 import { useWallet } from "@/hooks/use-wallet";
 import { ArrowRight } from "lucide-react";
+import { usePostHog } from "@posthog/react";
 
 import LogoPng from '../../public/logo.svg'
 
@@ -15,12 +16,28 @@ export const LoginPage = () => {
     const [showCreateWalletForm, setShowCreateWalletForm] = useState(false)
     const [loading, setLoading] = useState(false)
     const navigate = useNavigate()
+    const posthog = usePostHog()
 
     const handlePassphraseSubmit = async (mnemonic: string) => {
         setLoading(true)
         console.log('authenticating user...')
 
-        await storeWallet(mnemonic)
+        const wallet = await storeWallet(mnemonic)
+        const sparkAddress = await wallet.getSparkAddress()
+        posthog?.identify(sparkAddress)
+        posthog?.capture('wallet_connected')
+
+        setLoading(false)
+        navigate('/app/dashboard', { replace: true })
+    }
+
+    const handleCreateWalletSubmit = async (mnemonic: string) => {
+        setLoading(true)
+
+        const wallet = await storeWallet(mnemonic)
+        const sparkAddress = await wallet.getSparkAddress()
+        posthog?.identify(sparkAddress)
+        posthog?.capture('wallet_created')
 
         setLoading(false)
         navigate('/app/dashboard', { replace: true })
@@ -123,7 +140,7 @@ export const LoginPage = () => {
                                 <PassphraseForm onSubmit={handlePassphraseSubmit} onBack={() => setShowPassphraseForm(false)} loading={loading} />
                             }
                             {showCreateWalletForm &&
-                                <CreateWalletForm onSubmit={handlePassphraseSubmit} onBack={() => setShowCreateWalletForm(false)} loading={loading} />
+                                <CreateWalletForm onSubmit={handleCreateWalletSubmit} onBack={() => setShowCreateWalletForm(false)} loading={loading} />
                             }
                         </CardContent>
                     </Card>

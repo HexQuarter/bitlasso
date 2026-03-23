@@ -2,6 +2,7 @@ import { HashRouter, Route, Routes, useLocation } from "react-router"
 import { LandingPage } from "./pages/LandingPage"
 import { AppRoot } from "./AppRoot"
 import { WalletProvider } from "./hooks/use-wallet"
+import { SettingsProvider } from "./hooks/use-settings"
 import { Toaster } from "sonner"
 import { PaymentPage } from "./pages/PaymentPage"
 import { useEffect, useRef } from "react"
@@ -42,11 +43,17 @@ export const Root = () => {
                 <Route path='/privacy' Component={PrivacyPage} />
                 <Route path='/app/*' element={
                     <WalletProvider>
-                        <AppRoot />
+                        <SettingsProvider>
+                            <AppRoot />
+                        </SettingsProvider>
                     </WalletProvider>
                 } />
-                <Route path='/payment/:id' Component={PaymentPage} />
-                <Route index path='/payment/:id/certificate' Component={CertPage} />
+                <Route path='/payment/:id' element={<SettingsProvider>
+                    <PaymentPage />
+                </SettingsProvider>} />
+                <Route index path='/payment/:id/certificate' element={<SettingsProvider>
+                    <CertPage />
+                </SettingsProvider>} />
             </Routes>
             <Toaster />
             <ScrollToAnchor />

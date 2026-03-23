@@ -2,11 +2,12 @@ import { type TabType } from "@/components/app/receive-tabs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
-import { getPaymentPrice, } from "@/lib/api"
+import { getPaymentPrice } from "@/lib/api"
 import { shortenAddress, sparkBech32ToHex } from "@/lib/utils"
 import { AlertCircle, CheckCircle2, ChevronDown, Copy, ExternalLink, Gift, Lock } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { useParams } from "react-router"
+import { usePostHog } from "@posthog/react";
 
 import { AddressPurpose, getProviders, request, RpcErrorCode } from "sats-connect";
 import { toast } from "sonner"
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/collapsible"
 import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
+import { useSettings } from "@/hooks/use-settings"
 
 function formatTime(seconds: number) {
     const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -36,7 +38,10 @@ function formatTime(seconds: number) {
 
 export const PaymentPage: React.FC = () => {
     const { id } = useParams()
+    const { settings } = useSettings()
+    const posthog = usePostHog()
     const [loading, setLoading] = useState(true)
+
     const [paymentRequest, setPaymentRequest] = useState<undefined | PaymentRequest>(undefined)
     const [remainingRefreshTime, setRemainingRefreshTime] = useState(0)
     const [btcAmount, setBtcAmount] = useState(0)
@@ -79,11 +84,11 @@ export const PaymentPage: React.FC = () => {
     }
 
     useEffect(() => {
-        if (ran.current) return;
+        if (!settings || ran.current) return;
         ran.current = true;
 
         if (id && !completed && !paymentRequest) {
-            fetchPaymentRequest(id).then(async (paymentRequest) => {
+            fetchPaymentRequest(settings, id).then(async (paymentRequest) => {
                 setLoading(false)
                 setPaymentRequest(paymentRequest)
 
@@ -107,7 +112,7 @@ export const PaymentPage: React.FC = () => {
     }, [])
 
     useEffect(() => {
-        if (!paymentRequest) return
+        if (!paymentRequest || !settings) return
         if (paymentRequest.settleTx) {
             setCompleted(true)
             return
@@ -122,14 +127,14 @@ export const PaymentPage: React.FC = () => {
             console.log(paymentRequest, 'after redeem')
         }
         else {
-            subscribeRedeem(paymentRequest.id, (redeemAmount: number, redeemTransaction: string) => {
+            subscribeRedeem(settings, paymentRequest.id, (redeemAmount: number, redeemTransaction: string) => {
                 setPaymentRequest(prev => prev ? { ...prev, redeemAmount, redeemTx: redeemTransaction } : prev)
                 toast.success('Token have been redeemed. You can proceed to the payment with the discount applied')
                 setRedeemLoading(false)
             })
         }
 
-        subscribePayment(paymentRequest.id, (transaction: string, settlementMode: string) => {
+        subscribePayment(settings, paymentRequest.id, (transaction: string, settlementMode: string) => {
             setPaymentConfirmation({ transaction, settlementMode })
         })
     }, [paymentRequest])
@@ -157,6 +162,7 @@ export const PaymentPage: React.FC = () => {
         }
 
         setWallet(address);
+        posthog?.capture('wallet_connected_for_discount', { payment_id: paymentRequest.id })
 
         setLoadingTokens(true)
 
@@ -198,6 +204,10 @@ export const PaymentPage: React.FC = () => {
             setRedeemError(response.error.message)
             return
         }
+        posthog?.capture('tokens_redeemed', {
+            payment_id: paymentRequest.id,
+            tokens_redeemed: redeemedTokens,
+        })
     }
 
     const payWithXVerse = async () => {
@@ -216,6 +226,7 @@ export const PaymentPage: React.FC = () => {
                 return
             }
 
+            posthog?.capture('payment_completed', { payment_method: 'spark', amount_btc: btcAmount, payment_id: paymentRequest?.id })
             setPaymentMade(true)
         }
         else if (selectedPaymentTab == 'btc') {
@@ -229,12 +240,14 @@ export const PaymentPage: React.FC = () => {
                 return
             }
 
+            posthog?.capture('payment_completed', { payment_method: 'btc', amount_btc: btcAmount, payment_id: paymentRequest?.id })
             setPaymentMade(true)
         }
     }
 
     const handleSelectPaymentChange = (tab: TabType) => {
         setSelectedPaymentTab(tab)
+        posthog?.capture('payment_method_selected', { payment_method: tab, payment_id: paymentRequest?.id })
         if (tab == 'spark') {
             setPaymentAddress(paymentRequest?.sparkAddress)
         }

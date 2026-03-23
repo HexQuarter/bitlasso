@@ -21,15 +21,19 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { RevenueChart } from "@/components/app/revenue-chart"
 import { fetchPaymentsRequest, getNotifSettings, listReceipts, publishReceiptMetadata, subscribePayment, subscribeRedeem } from "@/lib/nostr"
 import { Spinner } from "@/components/ui/spinner"
-import { getSettings, getStatus, publishPaymentRequest, type Settings } from "@/lib/api"
+import { getStatus, publishPaymentRequest, type Settings } from "@/lib/api"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useNavigate } from "react-router"
 import { IconMessageDollar } from "@tabler/icons-react"
 import pLimit from 'p-limit';
+import { usePostHog } from "@posthog/react";
+import { useSettings } from "@/hooks/use-settings"
 
 export const DashboardPage = () => {
     const { wallet } = useWallet()
+    const { settings } = useSettings()
     const navigate = useNavigate()
+    const posthog = usePostHog()
 
     const hasSecuredMnemonic = localStorage.getItem('BITLASSO_SECURED_MNEMONIC') || 'false'
 
@@ -49,7 +53,6 @@ export const DashboardPage = () => {
     const [paymentRequestLoading, setPaymentRequestLoading] = useState(true)
     const [receiptLoading, setReceiptLoading] = useState(true)
     const [walletHistoryLoading, setWalletHistoryLoading] = useState(true)
-    const [settings, setSettings] = useState<Settings | undefined>(undefined)
 
     const currency = localStorage.getItem('BITLASSO_CURRENCY') || 'USD'
 
@@ -111,9 +114,6 @@ export const DashboardPage = () => {
         catch (_e) {
             setTokenMetadataLoading(false)
         }
-
-        const _settings = await getSettings()
-        setSettings(_settings)
 
         setTimeout(async () => {
             const [btc, spark, ln] = await Promise.all([
@@ -222,8 +222,8 @@ export const DashboardPage = () => {
     }, [addresses, paymentRequests])
 
     const refreshPaymentRequests = async () => {
-        if (!wallet) return
-        const paymentRequests = await fetchPaymentsRequest(wallet)
+        if (!wallet || !settings) return
+        const paymentRequests = await fetchPaymentsRequest(settings, wallet)
         if (paymentRequests.length > 0) {
             const last = paymentRequests.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).at(0)
             if (last) {
@@ -233,7 +233,7 @@ export const DashboardPage = () => {
         setPaymentRequests(paymentRequests)
 
         paymentRequests.forEach(payment => {
-            subscribePayment(payment.id, (settleTx, settlementMode) => {
+            subscribePayment(settings as Settings, payment.id, (settleTx, settlementMode) => {
                 setPaymentRequests(prev =>
                     prev.map(p =>
                         p.id === payment.id
@@ -243,7 +243,7 @@ export const DashboardPage = () => {
                 );
             })
 
-            subscribeRedeem(payment.id, (redeemAmount, redeemTx) => {
+            subscribeRedeem(settings as Settings, payment.id, (redeemAmount, redeemTx) => {
                 setPaymentRequests(prev =>
                     prev.map(p =>
                         p.id === payment.id
@@ -271,6 +271,7 @@ export const DashboardPage = () => {
         try {
             const { tokenId } = await wallet.createToken(name, symbol, 0n, 1, false)
             console.log('Token created with ID:', tokenId)
+            posthog?.capture('loyalty_token_created', { token_name: name, token_symbol: symbol })
 
             const metadata = await wallet.getTokenMetadata()
             setTokenMetadata(metadata)
@@ -317,6 +318,11 @@ export const DashboardPage = () => {
             ...prevReceipts
         ])
 
+        posthog?.capture('receipt_issued', {
+            amount: data.mintableTokens,
+            has_recipient: !!(data.recipientAddress && data.recipientAddress !== ''),
+            token_symbol: tokenMetadata?.symbol,
+        })
         await refreshIssuanceStats(wallet, tokenMetadata as TokenMetadata)
     }
 
@@ -365,7 +371,11 @@ export const DashboardPage = () => {
         const nonce = Number(localStorage.getItem('BITLASSO_PAYMENT_NONCE') || '1') + 1
         await publishPaymentRequest(txId, wallet, nonce, data.amount, tokenMetadata.identifier, data.discountRate, data.description)
         await refreshPaymentRequests()
-
+        posthog?.capture('payment_request_created', {
+            amount_usd: data.amount,
+            discount_rate: data.discountRate,
+            paid_with_credits: !data.feeSats,
+        })
         toast.success('Payment request created successfully')
     }
 
@@ -378,6 +388,7 @@ export const DashboardPage = () => {
         const requestSdk = await wallet.withAccountNumber(paymentRequest.nonce)
 
         await send(requestSdk, BTCAsset, paymentRequest.claimable, addresses.spark, 'spark')
+        posthog?.capture('payment_request_claimed', { amount_sats: paymentRequest.claimable, payment_id: id })
         await refreshPaymentRequests()
     }
 

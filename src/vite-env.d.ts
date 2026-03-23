@@ -2,7 +2,8 @@
 
 interface ImportMetaEnv {
     readonly VITE_BREEZ_API_KEY: string
-    readonly VITE_API_NOSTR_PUB: string
+    readonly VITE_PUBLIC_POSTHOG_PROJECT_TOKEN: string
+    readonly VITE_PUBLIC_POSTHOG_HOST: string
 }
 
 interface ImportMeta {

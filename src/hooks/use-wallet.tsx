@@ -1,6 +1,7 @@
 import { BreezSparkWallet, type Wallet } from '@/lib/wallet';
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
+import posthog from 'posthog-js';
 
 export interface WalletContextType {
     storeWallet: (mnemonic: string) => Promise<Wallet>;
@@ -49,6 +50,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     const disconnect = () => {
         console.log('disconnecting')
+        posthog.capture('wallet_disconnected')
+        posthog.reset()
         localStorage.removeItem('BITLASSO_MNEMONIC')
         setWallet(null)
         setWalletExists(false)

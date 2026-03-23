@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { usePostHog } from "@posthog/react"
 
 import { getNotifSettings, registerNotifSettings } from "@/lib/nostr"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -26,6 +27,7 @@ const hasNostr = () => typeof window !== 'undefined' && !!window.nostr
 
 export const SettingsPage = () => {
     const { wallet } = useWallet()
+    const posthog = usePostHog()
     const [initializing, setInitializing] = useState(true)
     const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({ email: '', npub: '' })
     const [mnemonic, setMnemonic] = useState<string[]>([])
@@ -59,6 +61,10 @@ export const SettingsPage = () => {
         if (!wallet) return
         setSaveLoading(true)
         await registerNotifSettings(wallet, notificationSettings)
+        posthog?.capture('notification_settings_saved', {
+            has_email: !!(notificationSettings.email && notificationSettings.email !== ''),
+            has_npub: !!(notificationSettings.npub && notificationSettings.npub !== ''),
+        })
 
         setTimeout(() => {
             setSaveLoading(false)
@@ -68,6 +74,7 @@ export const SettingsPage = () => {
     const handleRevealSecret = () => {
         const _mnemonic = localStorage.getItem('BITLASSO_MNEMONIC') as string
         setMnemonic(_mnemonic.split(' '))
+        posthog?.capture('wallet_secret_revealed')
     }
 
     const copy = async () => {

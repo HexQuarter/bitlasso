@@ -8,6 +8,7 @@ import { mnemonicToSeedSync } from "@scure/bip39";
 import type { Wallet } from "./wallet";
 import type { Payment } from "@/components/app/payment-table";
 import type { Receipt } from "@/components/app/receipt-table";
+import type { Settings } from "./api";
 
 const pool = new SimplePool({
     enablePing: true,
@@ -148,7 +149,7 @@ export const getNotifSettings = async (wallet: Wallet): Promise<NotificationSett
     return undefined
 }
 
-export const fetchPaymentsRequest = async (wallet: Wallet): Promise<Payment[]> => {
+export const fetchPaymentsRequest = async (settings: Settings, wallet: Wallet): Promise<Payment[]> => {
     const events = await fetchAndSync({
         kinds: [30078],
         "#t": ["bitlasso/req"],
@@ -164,14 +165,14 @@ export const fetchPaymentsRequest = async (wallet: Wallet): Promise<Payment[]> =
         paymentRequest.createdAt = new Date(created_at * 1000)
 
         try {
-            const paymentDetails = await fetchPaymentDetails(id)
+            const paymentDetails = await fetchPaymentDetails(settings, id)
             if (paymentDetails) {
                 const { settlementMode, transaction } = paymentDetails
                 paymentRequest.settleTx = transaction
                 paymentRequest.settlementMode = settlementMode
             }
 
-            const redeemDetails = await fetchRedeemDetails(id)
+            const redeemDetails = await fetchRedeemDetails(settings, id)
             if (redeemDetails) {
                 paymentRequest.redeemAmount = redeemDetails.redeemAmount
                 paymentRequest.redeemTx = redeemDetails.transaction
@@ -186,11 +187,11 @@ export const fetchPaymentsRequest = async (wallet: Wallet): Promise<Payment[]> =
     }))
 }
 
-export const fetchPaymentRequest = async (id: string): Promise<PaymentRequest> => {
+export const fetchPaymentRequest = async (settings: Settings, id: string): Promise<PaymentRequest> => {
     const events = await fetchAndSync({
         kinds: [30078],
         ids: [id],
-        authors: [import.meta.env.VITE_API_NOSTR_PUB]
+        authors: [settings.npub]
     });
 
     if (events.length == 0) {
@@ -202,14 +203,14 @@ export const fetchPaymentRequest = async (id: string): Promise<PaymentRequest> =
     paymentRequest.id = id
     paymentRequest.createdAt = new Date(created_at * 1000)
 
-    const paymentDetails = await fetchPaymentDetails(id)
+    const paymentDetails = await fetchPaymentDetails(settings, id)
     if (paymentDetails) {
         const { settlementMode, transaction } = paymentDetails
         paymentRequest.settleTx = transaction
         paymentRequest.settlementMode = settlementMode
     }
 
-    const redeemDetails = await fetchRedeemDetails(id)
+    const redeemDetails = await fetchRedeemDetails(settings, id)
     if (redeemDetails) {
         paymentRequest.redeemAmount = redeemDetails.redeemAmount
         paymentRequest.redeemTx = redeemDetails.transaction
@@ -218,10 +219,10 @@ export const fetchPaymentRequest = async (id: string): Promise<PaymentRequest> =
     return paymentRequest
 }
 
-const fetchPaymentDetails = async (requestId: string) => {
+const fetchPaymentDetails = async (settings: Settings, requestId: string) => {
     const events = await fetchAndSync({
         kinds: [30078],
-        authors: [import.meta.env.VITE_API_NOSTR_PUB],
+        authors: [settings.npub],
         "#d": [`bitlasso/payment/${requestId}`]
     });
     if (events.length == 0) {
@@ -237,10 +238,10 @@ const fetchPaymentDetails = async (requestId: string) => {
     }
 }
 
-const fetchRedeemDetails = async (requestId: string) => {
+const fetchRedeemDetails = async (settings: Settings, requestId: string) => {
     const events = await fetchAndSync({
         kinds: [30078],
-        authors: [import.meta.env.VITE_API_NOSTR_PUB],
+        authors: [settings.npub],
         "#d": [`bitlasso/redeem/${requestId}`],
     });
     if (events.length == 0) {
@@ -318,10 +319,10 @@ export const listReceipts = async (wallet: Wallet): Promise<Receipt[]> => {
     })
 }
 
-export const getBitcoinPrice = async (id: string): Promise<{ usdPrice: number, date: Date } | undefined> => {
+export const getBitcoinPrice = async (settings: Settings, id: string): Promise<{ usdPrice: number, date: Date } | undefined> => {
     const events = await fetchAndSync({
         kinds: [30078],
-        authors: [import.meta.env.VITE_API_NOSTR_PUB],
+        authors: [settings.npub],
         '#d': [`bitlasso/btc-price/${id}`]
     });
     if (events.length == 0) {
@@ -336,10 +337,10 @@ export const getBitcoinPrice = async (id: string): Promise<{ usdPrice: number, d
 const getTagByMarker = (tags: string[][], name: string, marker: string) =>
     tags.find(t => t[0] === name && t[3] === marker)?.[1]
 
-export const subscribeRedeem = (id: string, callback: (redeemAmount: number, redeemTransaction: string) => void) => {
+export const subscribeRedeem = (settings: Settings, id: string, callback: (redeemAmount: number, redeemTransaction: string) => void) => {
     subscribeAndSync({
         kinds: [30078],
-        authors: [import.meta.env.VITE_API_NOSTR_PUB],
+        authors: [settings.npub],
         "#d": [`bitlasso/redeem/${id}`]
     }, (evt) => {
         const { redeemAmount, redeemTransaction } = JSON.parse(evt.content)
@@ -347,10 +348,10 @@ export const subscribeRedeem = (id: string, callback: (redeemAmount: number, red
     })
 }
 
-export const subscribePayment = (requestId: string, callback: (transaction: string, settlementMode: string) => void) => {
+export const subscribePayment = (settings: Settings, requestId: string, callback: (transaction: string, settlementMode: string) => void) => {
     subscribeAndSync({
         kinds: [30078],
-        authors: [import.meta.env.VITE_API_NOSTR_PUB],
+        authors: [settings.npub],
         "#d": [`bitlasso/payment/${requestId}`]
     }, (evt) => {
         const { settlementMode, transaction } = JSON.parse(evt.content)
