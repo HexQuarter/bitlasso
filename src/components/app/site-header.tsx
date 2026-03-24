@@ -2,9 +2,21 @@ import { IconDashboard, IconSettings2, type Icon } from "@tabler/icons-react"
 import { Link, useLocation, useNavigate } from "react-router"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { LogOutIcon, Menu, MoreVertical, X } from "lucide-react"
+import { LogOutIcon, Menu, X } from "lucide-react"
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 import LogoPng from '../../../public/logo.svg'
 import { useWallet } from "@/hooks/use-wallet"
@@ -43,11 +55,19 @@ export function SiteHeader() {
     }))
   }, [location])
 
-  const logout = async () => {
+  const handleLogout = async () => {
     await wallet!.disconnect()
-    localStorage.removeItem('BITLASSO_MNEMONIC')
-    localStorage.removeItem('BITLASSO_PAYMENT_NONCE')
-    localStorage.removeItem('BITLASSO_SECURED_MNEMONIC')
+    const keysToRemove: string[] = [];
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith("BITLASSO")) {
+        keysToRemove.push(key);
+      }
+    }
+
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+
     navigate('/', { replace: true })
   }
 
@@ -77,18 +97,7 @@ export function SiteHeader() {
             {m.title}
           </Link>
         ))}
-        <div className="flex text-xs items-center gap-2 text-gray-500 hidden sm:flex">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant='ghost' className="text-xs rounded-full flex items-center gap-1"><MoreVertical /></Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem className="text-xs focus:text-primary focus:bg-primary/10 h-8 flex items-center gap-1" onClick={logout} >
-                <LogOutIcon className="h-5" /> Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <AlertDialogLogout onLogout={handleLogout} />
       </div>
 
       <div className="sm:hidden w-full">
@@ -105,12 +114,7 @@ export function SiteHeader() {
               </button>
             ))}
 
-            <button
-              onClick={logout}
-              className="w-full text-left hover:bg-primary/10 flex items-center text-muted-foreground gap-1"
-            >
-              <LogOutIcon className="h-5" /> Logout
-            </button>
+            <AlertDialogLogout onLogout={handleLogout} />
 
           </CollapsibleContent>
         </Collapsible>
@@ -124,5 +128,36 @@ export function SiteHeader() {
         {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5 text-primary" />}
       </button>
     </header >
+  )
+}
+
+
+const AlertDialogLogout: React.FC<{ onLogout: () => Promise<void> }> = ({ onLogout }) => {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          className={`flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-medium text-muted-foreground transition-all duration-300 hover:bg-secondary hover:text-primary hover:cursor-pointer focus-visible:border-0`}
+          variant='ghost'>
+          <LogOutIcon className="h-5" /> Logout
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent size="default">
+        <AlertDialogHeader>
+          <AlertDialogMedia className="bg-primary/10 text-primary h-10 w-10 p-2">
+            <LogOutIcon className="h-5 w-5" />
+          </AlertDialogMedia>
+          <AlertDialogTitle>Disconnect your wallet ?</AlertDialogTitle>
+          <AlertDialogDescription className="flex flex-col gap-2 mt-5">
+            <p className="text-sm font-bold">This will permanently disconnect your wallet.</p>
+            <p className="text-sm">Please make sure your secured your passphrase to be able to recover your funds later.</p>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel variant="outline">Cancel</AlertDialogCancel>
+          <AlertDialogAction variant="default" className="hover:cursor-pointer" onClick={() => onLogout()}>Disconnect</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
