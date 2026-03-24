@@ -2,7 +2,7 @@ import { NewTokenForm } from "@/components/app/new-token-form"
 
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useWallet } from "@/hooks/use-wallet"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { WalletCard } from "@/components/app/wallet-card"
@@ -71,22 +71,19 @@ export const DashboardPage = () => {
         }
     }
 
-    const claimPaymentRequestBalances = async () => {
-        if (!wallet) return
+    const attemptClaim = async (wallet: Wallet, nonce: number, attempt = 0) => {
+        const sweptKey = `BITLASSO_SWEPT_${nonce}`
+        const MAX = 4
+        const DELAYS = [1000, 2000, 4000, 8000] 
 
-        const claimableNonces = paymentRequests
-            .filter(p => p.settleTx !== undefined)  // only settled
-            .map(p => p.nonce)
-
-        if (claimableNonces.length === 0) return
-
-        for (const nonce of claimableNonces) {
-            const sweptKey = `BITLASSO_SWEPT_${nonce}`
-            try {
-                await claimBalance(wallet, nonce)
-                localStorage.setItem(sweptKey, 'true')
-            } catch (error) {
-                console.error('Error claiming for nonce', nonce, error)
+        try {
+            await claimBalance(wallet, nonce)
+            localStorage.setItem(sweptKey, 'true')
+        } catch (err: any) {
+            if (attempt < MAX) {
+                setTimeout(() => attemptClaim(wallet, nonce, attempt + 1), DELAYS[attempt])
+            } else {
+                console.error('Claim failed permanently:', err)
             }
         }
     }
@@ -100,9 +97,7 @@ export const DashboardPage = () => {
 
         const unclaimedBitcoinDeposits = await requestSdk.listUnclaimDeposits()
 
-        await Promise.all(unclaimedBitcoinDeposits.map(d =>
-            requestSdk.claimDeposit(d.txid, d.vout)
-        ))
+        await Promise.all(unclaimedBitcoinDeposits.map(d => requestSdk.claimDeposit(d.txid, d.vout)))
 
         const balance = await requestSdk.getBalance()
         const satsBalance = Number(balance.balance)
@@ -135,7 +130,6 @@ export const DashboardPage = () => {
                 wallet.getSparkAddress(),
                 wallet.getLightningAddress(),
             ])
-            console.log(ln)
             setAddresses({ btc, spark, ln })
             setWalletLoading(false)
         })
@@ -145,8 +139,6 @@ export const DashboardPage = () => {
             setPaymentRequestLoading(false)
             await refreshReceipts()
             setReceiptLoading(false)
-
-            claimPaymentRequestBalances()
         })
 
         setTimeout(async () => {
@@ -237,7 +229,7 @@ export const DashboardPage = () => {
 
 
     const refreshPaymentRequests = async () => {
-        if (!wallet || !settings) return
+        if (!wallet || !settings) return []
         const paymentRequests = await fetchPaymentsRequest(settings, wallet)
         if (paymentRequests.length > 0) {
             const maxNonce = Math.max(...paymentRequests.map(p => p.nonce))
@@ -258,8 +250,7 @@ export const DashboardPage = () => {
                 // Claim immediately on settlement event
                 const sweptKey = `BITLASSO_SWEPT_${payment.nonce}`
                 if (localStorage.getItem(sweptKey) !== 'true') {
-                    await claimBalance(wallet, payment.nonce)
-                    localStorage.setItem(sweptKey, 'true')
+                    await attemptClaim(wallet, payment.nonce)
                 }
             })
 
