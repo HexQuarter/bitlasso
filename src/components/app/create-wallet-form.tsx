@@ -5,7 +5,7 @@ import * as bip39 from '@scure/bip39';
 import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { ArrowUpRight, Coins, Rocket, Wallet } from "lucide-react";
+import { ArrowRight, Coins, Rocket, Wallet } from "lucide-react";
 
 type Props = {
     onSubmit: (mnemonic: string) => void
@@ -45,7 +45,7 @@ export const CreateWalletForm: React.FC<Props> = ({ onSubmit, loading = false })
                 </div>
             </div>
             <div className="flex lg:flex-row flex-col gap-2 items-center md:w-auto w-full">
-                <Button type="submit" className='md:w-auto w-full' onClick={handleSubmit} disabled={loading}>{loading && <Spinner />} Open the app <ArrowUpRight /></Button>
+                <Button type="submit" className='md:w-auto w-full' onClick={handleSubmit} disabled={loading}>{loading ? <Spinner /> : <span className="flex items-center gap-2">Open the app <ArrowRight /></span>}</Button>
             </div>
         </div>
     )

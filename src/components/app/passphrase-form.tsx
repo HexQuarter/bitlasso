@@ -6,7 +6,7 @@ import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 type Props = {
     onSubmit: (mnemonic: string) => void
@@ -103,9 +103,9 @@ export const PassphraseForm: React.FC<Props> = ({ onSubmit, onBack, loading = fa
                         />
                     ))}
                 </div>
-                <div className="flex flex-col lg:flex-row gap-2">
-                    <Button className='flex-1 w-full' variant='outline' onClick={() => onBack()}>Back</Button>
-                    {valid && <Button onClick={() => handleSubmit()} className='flex-1 w-full' disabled={loading}>{loading && <Spinner />} Join{loading && 'ing'} your workspace <ArrowUpRight /></Button>}
+                <div className={`flex flex-col lg:flex-row gap-2 ${loading ? 'justify-center' : ''}`}>
+                    {!loading && <Button className='flex-1 w-full' variant='outline' onClick={() => onBack()}>Back</Button>}
+                    {valid && <Button onClick={() => handleSubmit()} disabled={loading}>{loading ? <Spinner /> : <span className="flex gap-2 items-center">Join your workspace <ArrowRight /></span> }</Button>}
                 </div>
                 {error && <p className="text-red-500 text-sm italic mt-2 text-center">{error}</p>}
             </div>

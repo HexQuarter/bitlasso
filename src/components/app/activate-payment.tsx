@@ -127,9 +127,9 @@ export const ActivePayment: React.FC<Props> = ({ settings, loading, price, onSub
                     </div>
                 ))}
 
-                <div className="py-8 flex flex-col gap-2 px-5">
-                    <Button className="w-full flex flex-col" onClick={handleActivate} disabled={loading}>
-                        {loading ? <Spinner /> : `Activate for ${balance == 0 ? `${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(USD_FEE)} ` : '1 credit'}`}
+                <div className="py-8 flex justify-center gap-2 px-5">
+                    <Button className="w" onClick={handleActivate} disabled={loading}>
+                        {loading ? <Spinner /> : `Activate for ${balance == 0 ? `~${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(USD_FEE)} (${usdToBtc(USD_FEE, price) * 100_000_000} sats)` : '1 credit'}`}
                     </Button>
                 </div>
             </div>

@@ -10,7 +10,7 @@ export const AssetSelector: React.FC<Props> = ({ assets, onSelected }) => {
     return (
         <div className="w-full flex flex-col gap-2">
             <p className="text-sm">Select an asset</p>
-            <Select onValueChange={(val: string) => onSelected(assets[parseInt(val)])}>
+            <Select onValueChange={(val: string) => onSelected(assets[parseInt(val)])} defaultValue="0">
                 <SelectTrigger className="w-full">
                     <SelectValue placeholder="Bitcoin" />
                 </SelectTrigger>

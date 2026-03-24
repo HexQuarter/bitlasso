@@ -137,10 +137,10 @@ export const RevenueChart: React.FC<{ chartData: ChartData[] }> = ({ chartData }
                 </AreaChart>
             </ChartContainer>
             <div className="flex gap-2 mt-5 justify-center">
-                <Button variant='outline' disabled={range == 'daily'} className="h-5 text-xs px-4 py-4" onClick={() => setRange("daily")}>Daily</Button>
-                <Button variant='outline' disabled={range == 'weekly'} className="h-5 text-xs px-4 py-4" onClick={() => setRange("weekly")}>Weekly</Button>
-                <Button variant='outline' disabled={range == 'monthly'} className="h-5 text-xs px-4 py-4" onClick={() => setRange("monthly")}>Monthly</Button>
-                <Button variant='outline' disabled={range =='yearly'} className="h-5 text-xs px-4 py-4" onClick={() => setRange("yearly")}>Yearly</Button>
+                <Button variant='outline' disabled={range == 'daily'} className={`h-5 text-xs px-4 py-4 ${range == 'daily' ? 'disabled:opacity-100 text-white bg-primary border-primary border-1' : ''}`} onClick={() => setRange("daily")}>Daily</Button>
+                <Button variant='outline' disabled={range == 'weekly'} className={`h-5 text-xs px-4 py-4 ${range == 'weekly' ? 'disabled:opacity-100 text-white bg-primary border-primary border-1' : ''}`} onClick={() => setRange("weekly")}>Weekly</Button>
+                <Button variant='outline' disabled={range == 'monthly'} className={`h-5 text-xs px-4 py-4 ${range == 'monthly' ? 'disabled:opacity-100 text-white bg-primary border-primary border-1' : ''}`} onClick={() => setRange("monthly")}>Monthly</Button>
+                <Button variant='outline' disabled={range =='yearly'} className={`h-5 text-xs px-4 py-4 ${range == 'yearly' ? 'disabled:opacity-100 text-white bg-primary border-primary border-1' : ''}`} onClick={() => setRange("yearly")}>Yearly</Button>
             </div>
         </div>
     )

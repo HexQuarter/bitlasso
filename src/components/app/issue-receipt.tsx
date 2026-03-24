@@ -173,7 +173,7 @@ export const IssueReceiptForm: React.FC<Props> = ({ onSubmit, paymentRequests, b
                         <DialogClose asChild>
                             <Button variant="outline" className="bg-white">Cancel</Button>
                         </DialogClose>
-                        <Button type="submit" disabled={loading} > {loading && <Spinner />} Issue Receipt</Button>
+                        <Button type="submit" disabled={loading} > {loading ? <Spinner /> : 'Issue Receipt'}</Button>
                     </DialogFooter>
                 </form>
             </DialogContent>
