@@ -37,9 +37,6 @@ export const send = (wallet: Wallet, asset: Asset, amount: number, recipient: st
         }
         resolve(payment.id)
       })
-      wallet.on('paymentPending', () => {
-        toast.info(`Payment pending`)
-      })
       wallet.on('paymentFailed', (payment) => {
         if (payment.details?.type == 'token') {
           toast.error(`Failed to send ${Number(payment.amount) / (10 ** payment.details.metadata.decimals)} ${asset.symbol} to ${shortenAddress(recipient)}.`)

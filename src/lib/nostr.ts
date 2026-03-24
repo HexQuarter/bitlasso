@@ -6,7 +6,6 @@ import { bech32 } from "bech32";
 import { bytesToHex, hexToBytes } from "nostr-tools/utils";
 import { mnemonicToSeedSync } from "@scure/bip39";
 import type { Wallet } from "./wallet";
-import type { Payment } from "@/components/app/payment-table";
 import type { Receipt } from "@/components/app/receipt-table";
 import type { Settings } from "./api";
 
@@ -40,7 +39,7 @@ export const getNostrKeyPair = (mnemonic: string): NostrKeyPair => {
     const publicKey = getPublicKey(privateKey)
     const pkBytes = hexToBytes(publicKey);
 
-    const nsec = bech32.encode('nsec', bech32.toWords(privateKey)); // Truncate version byte if needed
+    const nsec = bech32.encode('nsec', bech32.toWords(privateKey));
     const npub = bech32.encode('npub', bech32.toWords(pkBytes));
     return {
         pub: publicKey,
@@ -99,14 +98,20 @@ const subscribeAndSync = (
     const relaysSeen = new Map<string, Set<string>>(
         RELAYS.map(r => [r, new Set()])
     );
+
+    const deliveredEvents = new Set<string>(); // track delivered events
+
     const subs = RELAYS.map(relay => {
         return pool.subscribeMany([relay], filter, {
             onevent(event) {
                 // Mark this relay as having the event
                 relaysSeen.get(relay)!.add(event.id);
 
-                // Deliver to caller
-                onEvent(event);
+                // Only deliver once across all relays
+                if (!deliveredEvents.has(event.id)) {
+                    deliveredEvents.add(event.id);
+                    onEvent(event); // // Deliver to caller exactly once per unique event
+                }
 
                 // Push to every relay that doesn't have it yet
                 for (const r of RELAYS) {
@@ -149,7 +154,7 @@ export const getNotifSettings = async (wallet: Wallet): Promise<NotificationSett
     return undefined
 }
 
-export const fetchPaymentsRequest = async (settings: Settings, wallet: Wallet): Promise<Payment[]> => {
+export const fetchPaymentsRequest = async (settings: Settings, wallet: Wallet): Promise<PaymentRequest[]> => {
     const events = await fetchAndSync({
         kinds: [30078],
         "#t": ["bitlasso/req"],
@@ -160,7 +165,7 @@ export const fetchPaymentsRequest = async (settings: Settings, wallet: Wallet): 
 
     return await Promise.all(events.map(async (e) => {
         const { id, content, created_at } = e
-        let paymentRequest = JSON.parse(content) as Payment
+        let paymentRequest = JSON.parse(content) as PaymentRequest
         paymentRequest.id = id
         paymentRequest.createdAt = new Date(created_at * 1000)
 

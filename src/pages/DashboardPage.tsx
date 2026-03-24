@@ -175,8 +175,12 @@ export const DashboardPage = () => {
         }, 60_000)
     }
 
+    let startupOnce = useRef(false)
+
     useEffect(() => {
         if (!wallet) return
+        if (startupOnce.current) return
+
         getStatus()
             .then(async ({ sparkStatus }) => {
                 if (sparkStatus == 'operational') {
@@ -221,11 +225,13 @@ export const DashboardPage = () => {
                 else {
                     setErrorSpark(`Spark status is not operational. Please retry in few moments. We are sorry for this inconvenience.`)
                 }
+                startupOnce.current = true
             })
             .catch(async (e) => {
                 console.log(e)
                 setTokenMetadataLoading(false)
                 setErrorSpark('An error occured. Please retry in few moments. We are sorry for this inconvenience.')
+                startupOnce.current = true
             })
     }, [wallet])
 
