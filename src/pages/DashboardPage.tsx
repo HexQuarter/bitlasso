@@ -12,7 +12,7 @@ import { ReceiptTable, type Receipt } from "@/components/app/receipt-table"
 import { type SparkPayment, type TokenBalanceMap, type TokenMetadata, type TokenStats, type Wallet } from "@/lib/wallet"
 import { PaymentTable, type Payment } from "@/components/app/payment-table"
 import { BTCAsset, type Asset } from "@/components/app/send"
-import { send } from "@/lib/utils"
+import { addTokenBalance, send, subTokenBalance } from "@/lib/utils"
 import type { ReceiptMetadataData } from "@/components/app/receipt-metadata-form"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertTriangle, AlertTriangleIcon, Coins, ExternalLink, FileText, MoreHorizontal, Pickaxe, Plus, RefreshCcw, Rocket, Wallet2, Zap } from "lucide-react"
@@ -73,18 +73,12 @@ export const DashboardPage = () => {
 
     const attemptClaim = async (wallet: Wallet, nonce: number, attempt = 0) => {
         const sweptKey = `BITLASSO_SWEPT_${nonce}`
-        const MAX = 4
-        const DELAYS = [1000, 2000, 4000, 8000] 
-
         try {
+            console.log("Attempt claim", nonce)
             await claimBalance(wallet, nonce)
             localStorage.setItem(sweptKey, 'true')
         } catch (err: any) {
-            if (attempt < MAX) {
-                setTimeout(() => attemptClaim(wallet, nonce, attempt + 1), DELAYS[attempt])
-            } else {
-                console.error('Claim failed permanently:', err)
-            }
+            setTimeout(() => attemptClaim(wallet, nonce, attempt + 1), 2000)
         }
     }
 
@@ -296,9 +290,9 @@ export const DashboardPage = () => {
     }
 
     const handleIssueReceipt = async (data: IssueReceiptData) => {
-        if (!wallet) return
+        if (!wallet || !tokenMetadata) return
 
-        const response = await wallet?.mintTokens(BigInt(data.mintableTokens) * BigInt(10 ** tokenMetadata!.decimals))
+        const response = await wallet?.mintTokens(BigInt(data.mintableTokens) * BigInt(10 ** tokenMetadata.decimals))
         if (!response) return
         console.log('Issued receipt with tx ID:', response?.id)
 
@@ -312,7 +306,7 @@ export const DashboardPage = () => {
         )
 
         if (data.recipientAddress && data.recipientAddress != '') {
-            const asset = { name: tokenMetadata!.name, symbol: tokenMetadata!.symbol, identifier: tokenMetadata!.identifier } as Asset
+            const asset = { name: tokenMetadata.name, symbol: tokenMetadata.symbol, identifier: tokenMetadata.identifier } as Asset
             const id = await send(wallet, asset, data.mintableTokens, data.recipientAddress, 'spark')
             console.log('Token transfered to recipient:', id)
         }
@@ -335,6 +329,7 @@ export const DashboardPage = () => {
             token_symbol: tokenMetadata?.symbol,
         }))
         await refreshIssuanceStats(wallet, tokenMetadata as TokenMetadata)
+        setTokenBalances((prev) => addTokenBalance(prev, tokenMetadata, data.mintableTokens))
     }
 
     const handlePaymentRequest = async (data: PaymentRequestData) => {
@@ -365,18 +360,7 @@ export const DashboardPage = () => {
             const { id } = await wallet.burnTokens(burnAmount, burnToken.tokenMetadata.identifier)
             txId = id
 
-            setTokenBalances((prev) => {
-                if (!prev) return prev
-                const updated = new Map(prev)
-                const entry = updated.get(burnToken.tokenMetadata.identifier)
-                if (!entry) return prev
-
-                updated.set(burnToken.tokenMetadata.identifier, {
-                    ...entry,
-                    balance: entry.balance - burnAmount
-                })
-                return updated
-            })
+            setTokenBalances((prev) => subTokenBalance(prev, burnToken.tokenMetadata, 1))
         }
 
         const currentMax = Math.max(
@@ -427,27 +411,7 @@ export const DashboardPage = () => {
         if (!settings || !tokenBalances) return
 
         const tokenMetadata = await wallet?.getTokenMetadata(settings.tokenAddress) as TokenMetadata
-
-        setTokenBalances((prev) => {
-            if (!prev) return prev
-            const updated = new Map(prev)
-            const entry = updated.get(tokenMetadata.identifier)
-            const addition = BigInt(amount * (10 ** tokenMetadata.decimals))
-
-            if (!entry) {
-                updated.set(tokenMetadata.identifier, {
-                    balance: addition,
-                    tokenMetadata
-                })
-                return updated
-            }
-
-            updated.set(tokenMetadata.identifier, {
-                ...entry,
-                balance: entry.balance + addition
-            })
-            return updated
-        })
+        setTokenBalances((prev) => addTokenBalance(prev, tokenMetadata, amount))
     }
 
     const tokensData: { id: string, name: string, symbol: string, amount: number }[] = useMemo(() => {

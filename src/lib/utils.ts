@@ -2,7 +2,7 @@ import { BTCAsset, type Asset } from "@/components/app/send";
 import { bech32m } from "bech32";
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import type { Wallet } from "./wallet";
+import type { TokenBalanceMap, TokenMetadata, Wallet } from "./wallet";
 import { toast } from "sonner";
 import type { Bech32mTokenIdentifier } from "@buildonspark/spark-sdk";
 
@@ -95,3 +95,48 @@ export function toBaseUnits(amount: string, decimals: number): bigint {
 }
 
 export const uint8ArrayToNum = (data: Uint8Array) => data.reduce((acc, byte) => (acc << 8n) | BigInt(byte), 0n);
+
+export const addTokenBalance = (tokenBalance: TokenBalanceMap | undefined, tokenMetadata: TokenMetadata, amount: number): TokenBalanceMap => {
+  if (!tokenBalance) {
+    const map = new Map() as TokenBalanceMap
+    map.set(tokenMetadata!.identifier, {
+      balance: BigInt(amount * (10 ** tokenMetadata.decimals)),
+      tokenMetadata
+    })
+    return map
+  }
+
+  const updated = new Map(tokenBalance)
+  const entry = updated.get(tokenMetadata.identifier)
+  const addition = BigInt(amount * (10 ** tokenMetadata.decimals))
+
+  if (!entry) {
+    updated.set(tokenMetadata.identifier, {
+      balance: addition,
+      tokenMetadata
+    })
+    return updated
+  }
+
+  updated.set(tokenMetadata.identifier, {
+    ...entry,
+    balance: entry.balance + addition
+  })
+  return updated
+}
+
+export const subTokenBalance = (tokenBalance: TokenBalanceMap | undefined, tokenMetadata: TokenMetadata, amount: number): TokenBalanceMap | undefined => {
+  if (!tokenBalance) return tokenBalance
+  const updated = new Map(tokenBalance)
+  const entry = updated.get(tokenMetadata.identifier)
+  if (!entry) return tokenBalance
+
+  const decimalsFactor = BigInt(10) ** BigInt(tokenMetadata.decimals)
+  const substraction = BigInt(amount) * decimalsFactor
+
+  updated.set(tokenMetadata.identifier, {
+    ...entry,
+    balance: entry.balance - substraction
+  })
+  return updated
+}
