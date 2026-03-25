@@ -22,14 +22,6 @@ export type Receipt = {
 const getColumns = (openMetadataModalFn: (metadata: ReceiptMetadataData) => void, paymentRequests: Payment[]) => {
     return [
         {
-            accessorKey: "date",
-            header: "Date",
-            cell: ({ row }) => {
-                const date: Date = row.original.date
-                return date.toLocaleString()
-            }
-        },
-        {
             accessorKey: "amount",
             header: "Amount"
         },

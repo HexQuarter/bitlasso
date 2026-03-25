@@ -85,7 +85,7 @@ export const ReceiptMetadataForm: React.FC<Props> = ({ metadata, onSubmit, onClo
                         <DialogClose asChild>
                             <Button variant="outline" className="bg-white">Cancel</Button>
                         </DialogClose>
-                        <Button type="submit" disabled={loading} > {loading && <Spinner />} Update receipt metadata</Button>
+                        <Button type="submit" disabled={loading} > {loading ? <Spinner /> : 'Update receipt metadata'}</Button>
                     </DialogFooter>
                 </form>
             </DialogContent>

@@ -78,7 +78,7 @@ export const NewTokenForm: React.FC<Props> = ({ onSubmit }) => {
                         <DialogClose asChild>
                             <Button variant="outline" >Cancel</Button>
                         </DialogClose>
-                        <Button type="submit" disabled={loading} > {loading && <Spinner />} Create the token</Button>
+                        <Button type="submit" disabled={loading} > {loading ? <Spinner /> : 'Create the token'}</Button>
                     </DialogFooter>
                 </form>
             </DialogContent>
