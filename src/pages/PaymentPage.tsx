@@ -282,6 +282,7 @@ export const PaymentPage: React.FC = () => {
                                 lasso
                             </div>
                             <Spinner />
+                            <p className='mt-10 text-primary font-mono uppercase text-xs animate-[bounce_0.8s_ease-in-out_infinite]'>Nostr sync...</p>
                         </div>
                     </div>
                 }

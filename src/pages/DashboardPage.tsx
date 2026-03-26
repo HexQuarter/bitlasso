@@ -15,13 +15,13 @@ import { BTCAsset, type Asset } from "@/components/app/send"
 import { addTokenBalance, send, subTokenBalance } from "@/lib/utils"
 import type { ReceiptMetadataData } from "@/components/app/receipt-metadata-form"
 import { Skeleton } from "@/components/ui/skeleton"
-import { AlertTriangle, AlertTriangleIcon, Coins, ExternalLink, FileText, MoreHorizontal, Pickaxe, Plus, RefreshCcw, Rocket, Wallet2, Zap } from "lucide-react"
+import { AlertTriangleIcon, Coins, ExternalLink, FileText, MoreHorizontal, Pickaxe, Plus, RefreshCcw, Rocket, Wallet2, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { RevenueChart } from "@/components/app/revenue-chart"
 import { fetchPaymentsRequest, getNotifSettings, listReceipts, publishReceiptMetadata, subscribePayment, subscribeRedeem } from "@/lib/nostr"
 import { Spinner } from "@/components/ui/spinner"
-import { getStatus, publishPaymentRequest, type Settings } from "@/lib/api"
+import { publishPaymentRequest, type Settings } from "@/lib/api"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useNavigate } from "react-router"
 import { IconMessageDollar } from "@tabler/icons-react"
@@ -46,7 +46,6 @@ export const DashboardPage = () => {
     const [paymentRequests, setPaymentRequests] = useState<Payment[]>([])
     const [receipts, setReceipts] = useState<Receipt[]>([])
     const [walletHistory, setWalletHistory] = useState<SparkPayment[]>([])
-    const [errorSpark, setErrorSpark] = useState<string | undefined>(undefined)
     const [notifSettingAlert, setNotifSettingAlert] = useState(false)
     const [walletLoading, setWalletLoading] = useState(true)
     const [paymentRequestLoading, setPaymentRequestLoading] = useState(true)
@@ -167,58 +166,44 @@ export const DashboardPage = () => {
         if (!wallet) return
         if (startupOnce.current) return
 
-        getStatus()
-            .then(async ({ sparkStatus }) => {
-                if (sparkStatus == 'operational') {
-                    setErrorSpark(undefined)
+        setTimeout(async () => {
+            const notifSettings = await getNotifSettings(wallet)
+            if (!notifSettings || (notifSettings.email == undefined && notifSettings.npub == undefined)) {
+                setNotifSettingAlert(true)
+            }
+        })
 
-                    setTimeout(async () => {
-                        const notifSettings = await getNotifSettings(wallet)
-                        if (!notifSettings || (notifSettings.email == undefined && notifSettings.npub == undefined)) {
-                            setNotifSettingAlert(true)
-                        }
-                    })
+        fetchData(wallet)
 
-                    await fetchData(wallet)
+        const refreshBalance = async () => {
+            await updateBalance(wallet)
 
-                    const refreshBalance = async () => {
-                        await updateBalance(wallet)
+            const payments = await wallet.listPayments()
+            setWalletHistory(payments)
 
-                        const payments = await wallet.listPayments()
-                        setWalletHistory(payments)
+            if (tokenMetadata) {
+                refreshIssuanceStats(wallet, tokenMetadata)
+            }
+        }
 
-                        if (tokenMetadata) {
-                            refreshIssuanceStats(wallet, tokenMetadata)
-                        }
-                    }
+        wallet.on('synced', refreshBalance)
+        wallet.on('paymentPending', (payment) => {
+            if (payment.paymentType == 'receive') {
+                toast.info(`Payment incoming. Waiting for confirmation...`)
+            }
+        })
+        wallet.on('paymentReceived', async (payment) => {
+            if (payment.method != 'token') {
+                toast.success(`Received payment of ${Number(payment.amount)} sats`)
+            }
+            await refreshBalance()
+        })
+        wallet.on('paymentSent', async () => {
+            await refreshBalance()
+        })
 
-                    wallet.on('synced', refreshBalance)
-                    wallet.on('paymentPending', (payment) => {
-                        if (payment.paymentType == 'receive') {
-                            toast.info(`Payment incoming. Waiting for confirmation...`)
-                        }
-                    })
-                    wallet.on('paymentReceived', async (payment) => {
-                        if (payment.method != 'token') {
-                            toast.success(`Received payment of ${Number(payment.amount)} sats`)
-                        }
-                        await refreshBalance()
-                    })
-                    wallet.on('paymentSent', async () => {
-                        await refreshBalance()
-                    })
-                }
-                else {
-                    setErrorSpark(`Spark status is not operational. Please retry in few moments. We are sorry for this inconvenience.`)
-                }
-                startupOnce.current = true
-            })
-            .catch(async (e) => {
-                console.log(e)
-                setTokenMetadataLoading(false)
-                setErrorSpark('An error occured. Please retry in few moments. We are sorry for this inconvenience.')
-                startupOnce.current = true
-            })
+        startupOnce.current = true
+        //   
     }, [wallet])
 
 
@@ -480,14 +465,6 @@ export const DashboardPage = () => {
                     </AlertDescription>
                 </Alert>}
             </div>
-            {errorSpark && <Alert className="py-5 bg-primary/10 text-primary border-1 border-primary/20">
-                <AlertTriangle />
-                <AlertTitle className="font-semibold">Networking issue</AlertTitle>
-                <AlertDescription className="flex flex-col gap-5 text-foreground">
-                    {errorSpark}
-                </AlertDescription>
-            </Alert>}
-
 
             {(!tokenMetadataLoading && tokenMetadata) && <div className="grid lg:grid-cols-3 gap-2">
                 <Card className="col-span-1">
@@ -604,7 +581,7 @@ export const DashboardPage = () => {
                     </div>
                 </div>
             </div>}
-            {!errorSpark && <div className="grid lg:grid-cols-2 gap-2">
+            <div className="grid lg:grid-cols-2 gap-2">
                 {!tokenMetadataLoading && !tokenMetadata &&
                     <Card className="flex flex-col justify-between lg:col-span-1">
                         <CardHeader>
@@ -732,7 +709,7 @@ export const DashboardPage = () => {
                         </div>
                     </CardContent>
                 </Card>}
-            </div>}
+            </div>
         </div>
     )
 }
