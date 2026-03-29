@@ -136,7 +136,7 @@ export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price, settings,
                     {ready && <DialogFooter>
                         <ActivePayment settings={settings} loading={loading} price={price} onSubmit={handleActivatePayment} creditBalance={creditBalance} onPurchaseCredits={onPurchaseCredits} />
                     </DialogFooter>}
-                    <DialogClose asChild><Button variant="outline" className="w-full bg-white">Cancel</Button></DialogClose>
+                    <DialogClose asChild><Button variant="outline" className="w-full bg-white" onClick={() => setLoading(false)}>Cancel</Button></DialogClose>
                 </div>
             </DialogContent>
         </Dialog>

@@ -21,10 +21,9 @@ type Props = {
     handleRedeem: (transaction: string, amount: number) => void,
     maxRedeemableToken: number,
     availableWallet: boolean,
-    onRedemption: (amount: number, tx: string) => void
 }
 
-export const LoyaltySection: React.FC<Props> = ({ settings, paymentRequest, handleRedeem, maxRedeemableToken, availableWallet, onRedemption }) => {
+export const LoyaltySection: React.FC<Props> = ({ settings, paymentRequest, handleRedeem, maxRedeemableToken, availableWallet }) => {
     const [tokenBalance, setTokenBalance] = useState<undefined | { amount: number, name: string, decimals: number }>(undefined)
     const [redeemedTokens, setRedeemedTokens] = useState(0)
     const [loadingTokens, setLoadingTokens] = useState(false)
@@ -95,8 +94,6 @@ export const LoyaltySection: React.FC<Props> = ({ settings, paymentRequest, hand
             payment_id: paymentRequest.id,
             tokens_redeemed: redeemedTokens,
         }))
-
-        onRedemption(redeemedTokens, response.result.id)
     }
 
     useEffect(() => {

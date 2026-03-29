@@ -278,14 +278,6 @@ const PendingPaymentState: React.FC<{
 
     const [openedLoyalty, setOpenLoyalty] = useState(false)
 
-    const handleLoyaltyRedemption = (redeemAmount: number, redeemTransaction: string) => {
-        setRedeemDetails({
-            redeemAmount,
-            redeemTransaction
-        })
-        setOpenLoyalty(false)
-    }
-
     return (
         <div className="flex flex-col lg:py-20">
             <Card className="flex flex-col gap-10 p-0 gap-0 shadow-xs not-sm:rounded-none">
@@ -331,7 +323,6 @@ const PendingPaymentState: React.FC<{
                                             handleRedeem={((transaction, amount) => setRedeemDetails({ redeemAmount: amount, redeemTransaction: transaction }))}
                                             maxRedeemableToken={maxRedeemableToken}
                                             availableWallet={availableWallet}
-                                            onRedemption={handleLoyaltyRedemption}
                                         />
                                     }
                                 </div>
