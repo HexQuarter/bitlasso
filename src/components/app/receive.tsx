@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Addresses } from "@/hooks/use-wallet";
 import { TabsReceive } from "./receive-tabs";
 import { ArrowDown } from "lucide-react";
+import { Card } from "../ui/card";
 
 type Props = {
     addresses: Addresses
@@ -26,7 +27,9 @@ export const Receive: React.FC<Props> = ({ addresses }) => {
                 <DialogHeader>
                     <DialogTitle className="font-serif text-3xl font-light">Receive funds</DialogTitle>
                 </DialogHeader>
+                <Card>
                 <TabsReceive btcAddress={addresses.btc} sparkAddress={addresses.spark} lnAddress={addresses.ln} />
+                </Card>
                 <DialogFooter>
                     <DialogClose asChild>
                         <Button variant="outline" className="bg-white">Cancel</Button>

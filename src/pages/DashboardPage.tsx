@@ -92,7 +92,7 @@ export const DashboardPage = () => {
 
         await Promise.all(unclaimedBitcoinDeposits.map(d => requestSdk.claimDeposit(d.txid, d.vout)))
 
-        const balance = await requestSdk.getBalance()
+        const balance = await requestSdk.getBalance(true)
         const satsBalance = Number(balance.balance)
 
         if (satsBalance > 0) {
@@ -275,7 +275,7 @@ export const DashboardPage = () => {
     }
 
     const handleIssueReceipt = async (data: IssueReceiptData) => {
-        if (!wallet || !tokenMetadata) return
+        if (!wallet || !tokenMetadata || !settings) return
 
         const response = await wallet?.mintTokens(BigInt(data.mintableTokens) * BigInt(10 ** tokenMetadata.decimals))
         if (!response) return
@@ -292,7 +292,7 @@ export const DashboardPage = () => {
 
         if (data.recipientAddress && data.recipientAddress != '') {
             const asset = { name: tokenMetadata.name, symbol: tokenMetadata.symbol, identifier: tokenMetadata.identifier } as Asset
-            const id = await send(wallet, asset, data.mintableTokens, data.recipientAddress, 'spark')
+            const id = await send(settings, wallet, asset, data.mintableTokens, data.recipientAddress, 'spark')
             console.log('Token transfered to recipient:', id)
         }
 
@@ -325,7 +325,7 @@ export const DashboardPage = () => {
 
         let txId: string
         if (data.feeSats) {
-            txId = await send(wallet, BTCAsset, data.feeSats, settings.address, "spark")
+            txId = await send(settings, wallet, BTCAsset, data.feeSats, settings.address, "spark")
         }
         else {
             if (!tokenBalances) {
@@ -367,8 +367,8 @@ export const DashboardPage = () => {
     }
 
     const handleSend = async (method: 'spark' | 'lightning' | 'bitcoin', asset: Asset, amount: number, recipient: string) => {
-        if (!wallet) return
-        await send(wallet, asset, amount, recipient, method)
+        if (!wallet || !settings) return
+        await send(settings, wallet, asset, amount, recipient, method)
     }
 
     const handleReceiptMetadataChange = async (data: ReceiptMetadataData) => {

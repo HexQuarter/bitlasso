@@ -40,10 +40,10 @@ export type Bundle = {
     savings: number
 }
 
-const purchaseBundle = async (wallet: Wallet, price: number, bundle: Bundle, bitlassoAddress: string) => {
+const purchaseBundle = async (settings: Settings, wallet: Wallet, price: number, bundle: Bundle) => {
     const amount = bundle.priceEach * bundle.quantity
     const sats = usdToBtc(amount, price) * 100_000_000
-    const paymentId = await send(wallet, BTCAsset, sats, bitlassoAddress, 'spark')
+    const paymentId = await send(settings, wallet, BTCAsset, sats, settings.address, 'spark')
     console.log(paymentId)
     const walletAddress = await wallet.getSparkAddress()
     const { transferId } = await purchaseCredits(paymentId, bundle.quantity, walletAddress)
@@ -65,7 +65,7 @@ export const ActivePayment: React.FC<Props> = ({ settings, loading, price, onSub
         if (!selectedBundle) return;
         setProcessing(true);
         try {
-            await purchaseBundle(wallet, price, selectedBundle, settings.address);
+            await purchaseBundle(settings, wallet, price, selectedBundle);
             await onPurchaseCredits(selectedBundle.quantity)
             setBalance((prev) => prev + selectedBundle.quantity);
             setStatus("success");

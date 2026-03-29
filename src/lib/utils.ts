@@ -5,6 +5,7 @@ import { twMerge } from "tailwind-merge"
 import type { TokenBalanceMap, TokenMetadata, Wallet } from "./wallet";
 import { toast } from "sonner";
 import type { Bech32mTokenIdentifier } from "@buildonspark/spark-sdk";
+import type { Settings } from "./api";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -25,24 +26,26 @@ export function sparkBech32ToHex(bech32Id: string) {
   return Buffer.from(data).toString('hex');
 }
 
-export const send = (wallet: Wallet, asset: Asset, amount: number, recipient: string, method: "spark" | "lightning" | "bitcoin") => {
+export const send = (settings: Settings, wallet: Wallet, asset: Asset, amount: number, recipient: string, method: "spark" | "lightning" | "bitcoin") => {
   return new Promise<string>(async (resolve, reject) => {
     try {
+
+      const normalizedRecipient = recipient == settings.address ? 'Bitlasso' : shortenAddress(recipient)
       wallet.on('paymentSent', (payment) => {
         if (payment.details?.type == 'token') {
-          toast.success(`Sent ${Number(payment.amount) / (10 ** payment.details.metadata.decimals)} ${asset.symbol} to ${shortenAddress(recipient)}.`)
+          toast.success(`Sent ${Number(payment.amount) / (10 ** payment.details.metadata.decimals)} ${asset.symbol} to ${normalizedRecipient}.`)
         }
         else {
-          toast.success(`Sent ${payment.amount} sats to ${shortenAddress(recipient)}.`)
+          toast.success(`Sent ${payment.amount} sats to ${normalizedRecipient}.`)
         }
         resolve(payment.id)
       })
       wallet.on('paymentFailed', (payment) => {
         if (payment.details?.type == 'token') {
-          toast.error(`Failed to send ${Number(payment.amount) / (10 ** payment.details.metadata.decimals)} ${asset.symbol} to ${shortenAddress(recipient)}.`)
+          toast.error(`Failed to send ${Number(payment.amount) / (10 ** payment.details.metadata.decimals)} ${asset.symbol} to ${normalizedRecipient}.`)
         }
         else {
-          toast.error(`Failed to send ${amount} sats to ${shortenAddress(recipient)}.`)
+          toast.error(`Failed to send ${amount} sats to ${normalizedRecipient}.`)
         }
         reject()
       })

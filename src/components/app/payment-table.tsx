@@ -2,12 +2,13 @@ import { type ColumnDef } from "@tanstack/react-table"
 
 import { DataTable } from "@/components/ui/data-table"
 import React from "react"
-import { ExternalLink, MoreHorizontal } from "lucide-react"
+import { ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { IssueReceiptForm, type IssueReceiptData } from "./issue-receipt"
 import type { Receipt } from "./receipt-table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { CiMenuKebab } from "react-icons/ci";
 
 export type Payment = {
     createdAt: Date
@@ -24,6 +25,66 @@ export type Payment = {
 
 const getColumns = (onDeriveReceipt: (data: IssueReceiptData) => Promise<void>, paymentRequests: Payment[], receipts: Receipt[]) => {
     return [
+         {
+            accessorKey: "actions",
+            header: "",
+            cell: ({ row }) => {
+                const canDeriveReceipts = row.original.settleTx && !receipts.find(r => r.paymentId == row.original.id)
+                const derivedReceipt = receipts.find(r => r.paymentId == row.original.id)
+                const deriveReceiptTx = derivedReceipt ? `https://sparkscan.io/tx/${derivedReceipt.transaction}` : ''
+
+                const settleTx: string | undefined = row.original.settleTx
+                let settleTxUrl: string | undefined
+                if (settleTx) {
+                    switch (row.original.settlementMode) {
+                        case "spark":
+                            settleTxUrl = `https://sparkscan.io/tx/${settleTx}`
+                            break
+                        case "btc":
+                            settleTxUrl = `https://www.blockchain.com/explorer/transactions/btc/${settleTx}`
+                            break
+                        default:
+                            return <></>
+                    }
+                }
+
+                const redeemTx: string | undefined = row.original.redeemTx
+                let redeemTxUrl: string | undefined
+                if (redeemTx) {
+                    redeemTxUrl = `https://sparkscan.io/tx/${redeemTx}`
+                }
+
+                const actionToDo = canDeriveReceipts
+
+                return (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <div className="flex gap-1 items-center">
+                                <Button variant="ghost" className="h-8 w-8 p-0 rounded-full hover:bg-transparent hover:cursor-pointer">
+                                    <CiMenuKebab className={`h-4 w-4`} />
+                                    <span className={`relative flex size-2 ${actionToDo ? 'visible bottom-1 right-2' : 'invisible'}`}>
+                                        <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75'></span>
+                                        <span className="relative inline-flex size-2 rounded-full bg-primary"></span>
+                                    </span>
+                                </Button>
+
+                                <span className="sr-only">Open menu</span>
+                            </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            {!row.original.settleTx && <DropdownMenuItem onClick={() => window.open(`#/payment/${row.original.id}`, '_blank')}>Open payment's page <ExternalLink /></DropdownMenuItem>}
+                            {canDeriveReceipts && <IssueReceiptForm buttonVariant='none' onSubmit={onDeriveReceipt} buttonText="Derive receipt" amount={row.original.amount} description={row.original.description} paymentId={row.original.id} paymentRequests={paymentRequests} />}
+                            {settleTxUrl && <DropdownMenuItem onClick={() => window.open(settleTxUrl, '_blank')}>Open settlement transaction <ExternalLink /></DropdownMenuItem>}
+                            {redeemTxUrl && <DropdownMenuItem onClick={() => window.open(redeemTxUrl, '_blank')}>Open redeem transaction <ExternalLink /></DropdownMenuItem>}
+                            {derivedReceipt && <DropdownMenuItem onClick={() => window.open(deriveReceiptTx, '_blank')}>Open receipt mint transaction <ExternalLink /></DropdownMenuItem>}
+                            {row.original.settleTx && <DropdownMenuItem onClick={() => window.open(`#/payment/${row.original.id}/certificate`, '_blank')}>Open payment certificate<ExternalLink /></DropdownMenuItem>}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )
+            }
+        },
         {
             accessorKey: "createdAt",
             header: "Date",
@@ -113,66 +174,7 @@ const getColumns = (onDeriveReceipt: (data: IssueReceiptData) => Promise<void>, 
                 )
             }
         },
-        {
-            accessorKey: "actions",
-            header: "",
-            cell: ({ row }) => {
-                const canDeriveReceipts = row.original.settleTx && !receipts.find(r => r.paymentId == row.original.id)
-                const derivedReceipt = receipts.find(r => r.paymentId == row.original.id)
-                const deriveReceiptTx = derivedReceipt ? `https://sparkscan.io/tx/${derivedReceipt.transaction}` : ''
-
-                const settleTx: string | undefined = row.original.settleTx
-                let settleTxUrl: string | undefined
-                if (settleTx) {
-                    switch (row.original.settlementMode) {
-                        case "spark":
-                            settleTxUrl = `https://sparkscan.io/tx/${settleTx}`
-                            break
-                        case "btc":
-                            settleTxUrl = `https://www.blockchain.com/explorer/transactions/btc/${settleTx}`
-                            break
-                        default:
-                            return <></>
-                    }
-                }
-
-                const redeemTx: string | undefined = row.original.redeemTx
-                let redeemTxUrl: string | undefined
-                if (redeemTx) {
-                    redeemTxUrl = `https://sparkscan.io/tx/${redeemTx}`
-                }
-
-                const actionToDo = canDeriveReceipts
-
-                return (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <div className="flex gap-1 items-center">
-                                <Button variant="ghost" className="h-8 w-8 p-0 rounded-full">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                    <span className={`relative flex size-2 ${actionToDo ? 'visible bottom-1 right-2' : 'invisible'}`}>
-                                        <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75'></span>
-                                        <span className="relative inline-flex size-2 rounded-full bg-primary"></span>
-                                    </span>
-                                </Button>
-
-                                <span className="sr-only">Open menu</span>
-                            </div>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            {!row.original.settleTx && <DropdownMenuItem onClick={() => window.open(`#/payment/${row.original.id}`, '_blank')}>Open payment's page <ExternalLink /></DropdownMenuItem>}
-                            {canDeriveReceipts && <IssueReceiptForm buttonVariant='none' onSubmit={onDeriveReceipt} buttonText="Derive receipt" amount={row.original.amount} description={row.original.description} paymentId={row.original.id} paymentRequests={paymentRequests} />}
-                            {settleTxUrl && <DropdownMenuItem onClick={() => window.open(settleTxUrl, '_blank')}>Open settlement transaction <ExternalLink /></DropdownMenuItem>}
-                            {redeemTxUrl && <DropdownMenuItem onClick={() => window.open(redeemTxUrl, '_blank')}>Open redeem transaction <ExternalLink /></DropdownMenuItem>}
-                            {derivedReceipt && <DropdownMenuItem onClick={() => window.open(deriveReceiptTx, '_blank')}>Open receipt mint transaction <ExternalLink /></DropdownMenuItem>}
-                            {row.original.settleTx && <DropdownMenuItem onClick={() => window.open(`#/payment/${row.original.id}/certificate`, '_blank')}>Open payment certificate<ExternalLink /></DropdownMenuItem>}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                )
-            }
-        },
+       
 
     ] as ColumnDef<Payment>[]
 }

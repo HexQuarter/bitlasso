@@ -78,7 +78,7 @@ interface _SparkWallet {
     getTokenMetadata: (identifier?: string) => Promise<TokenMetadata | undefined>;
     getTokenStats: (tokenMetadata: TokenMetadata) => Promise<undefined | TokenStats>;
     createToken: (name: string, symbol: string, initialSupply: bigint, decimals: number, isFreezable: boolean) => Promise<{ tokenId: string }>;
-    getBalance: () => Promise<Balance>;
+    getBalance: (forcedSync?: boolean) => Promise<Balance>;
     sendSparkPayment(address: string, amountSats?: number): Promise<{ paymentId: string }>;
     sendLightningPayment(invoice: string, amountSats?: number): Promise<{ paymentId: string }>;
     sendOnChainPayment(address: string, amountSats: number): Promise<{ paymentId: string }>;
@@ -264,11 +264,11 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
         return instance;
     }
 
-    async getBalance(): Promise<Balance> {
+    async getBalance(forcedSync = false): Promise<Balance> {
         const info = await this.sdk.getInfo({
             // ensureSynced: true will ensure the SDK is synced with the Spark network
             // before returning the balance
-            ensureSynced: false
+            ensureSynced: forcedSync
         })
 
         const tokenBalances = new Map() as TokenBalanceMap
