@@ -393,7 +393,7 @@ export const DashboardPage = () => {
     }
 
     const handlePurchaseCredits = async (amount: number) => {
-        if (!settings || !tokenBalances) return
+        if (!settings) return
 
         const tokenMetadata = await wallet?.getTokenMetadata(settings.tokenAddress) as TokenMetadata
         setTokenBalances((prev) => addTokenBalance(prev, tokenMetadata, amount))

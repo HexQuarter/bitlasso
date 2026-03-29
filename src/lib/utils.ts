@@ -84,8 +84,15 @@ export const send = (settings: Settings, wallet: Wallet, asset: Asset, amount: n
       }
     } catch (e) {
       const error = e as Error
-      console.error(error.message)
-      toast.error(`Failed to send ${asset.symbol}: ${error.message}`)
+      
+      if (error.message.includes('insufficient funds')) {
+        toast.error(`Failed to send ${asset.symbol}: insufficient funds`)
+      } 
+      else {
+        toast.error(`Failed to send ${asset.symbol}: ${error.message}`)
+        console.error(error.message)
+      }
+
       reject()
     }
   })
