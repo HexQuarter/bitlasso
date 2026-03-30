@@ -214,33 +214,41 @@ export const DashboardPage = () => {
             const maxNonce = Math.max(...paymentRequests.map(p => p.nonce))
             localStorage.setItem("BITLASSO_PAYMENT_NONCE", maxNonce.toString())
         }
-        setPaymentRequests(paymentRequests)
+        setPaymentRequests(paymentRequests.map(p => {
+            if (p.amount == 1) {
+                p.amount = 1000
+            
+            }
+            return p
+        }))
 
-        paymentRequests.forEach(payment => {
-            subscribePayment(settings as Settings, payment.id, async (settleTx, settlementMode) => {
-                setPaymentRequests(prev =>
-                    prev.map(p =>
-                        p.id === payment.id
-                            ? { ...p, settleTx, settlementMode }
-                            : p
-                    )
-                );
+        setTimeout(() => {
+            paymentRequests.forEach(payment => {
+                subscribePayment(settings as Settings, payment.id, async (settleTx, settlementMode) => {
+                    setPaymentRequests(prev =>
+                        prev.map(p =>
+                            p.id === payment.id
+                                ? { ...p, settleTx, settlementMode }
+                                : p
+                        )
+                    );
 
-                // Claim immediately on settlement event
-                const sweptKey = `BITLASSO_SWEPT_${payment.nonce}`
-                if (localStorage.getItem(sweptKey) !== 'true') {
-                    await attemptClaim(wallet, payment.nonce)
-                }
-            })
+                    // Claim immediately on settlement event
+                    const sweptKey = `BITLASSO_SWEPT_${payment.nonce}`
+                    if (localStorage.getItem(sweptKey) !== 'true') {
+                        await attemptClaim(wallet, payment.nonce)
+                    }
+                })
 
-            subscribeRedeem(settings as Settings, payment.id, (redeemAmount, redeemTx) => {
-                setPaymentRequests(prev =>
-                    prev.map(p =>
-                        p.id === payment.id
-                            ? { ...p, redeemAmount, redeemTx }
-                            : p
-                    )
-                );
+                subscribeRedeem(settings as Settings, payment.id, (redeemAmount, redeemTx) => {
+                    setPaymentRequests(prev =>
+                        prev.map(p =>
+                            p.id === payment.id
+                                ? { ...p, redeemAmount, redeemTx }
+                                : p
+                        )
+                    );
+                })
             })
         })
     }

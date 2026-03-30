@@ -37,6 +37,7 @@
     "@scure/bip39": "^2.0.1",
     "@tabler/icons-react": "^3.34.1",
     "@tanstack/react-table": "^8.21.3",
+    "@videojs/react": "^10.0.0-beta.11",
     "bech32": "^2.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

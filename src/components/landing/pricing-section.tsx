@@ -61,7 +61,7 @@ export function PricingSection() {
                     key={bundle.quantity}
                     onClick={() => setSelectedBundle(bundle.quantity)}
                     className={`group relative overflow-hidden rounded-xl border transition-all duration-300 px-5 py-4 text-left ${selectedBundle === bundle.quantity
-                      ? "border-primary bg-primary/5"
+                      ? "border-primary/20 bg-primary/10"
                       : "border-border/40 bg-background hover:border-border/60"
                       }`}
                   >

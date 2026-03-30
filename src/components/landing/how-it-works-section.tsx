@@ -1,40 +1,63 @@
 "use client"
 
-import { useRef } from "react"
+import { useRef, useState } from "react"
 import { FileText, Zap, Award, RotateCcw } from "lucide-react"
 import { useInView } from "@/hooks/use-in-view"
+
+// import PaymentRequest from '../../../public/payment_request.png'
+// import PaymentCertificate from '../../../public/certificate.png'
+// import Dashboard from '../../../public/dashboard.png'
+// import Redeeem from '../../../public/redeem_screenshot.png'
+import { MyPlayer } from "./video-player"
+
+import CreatePaymentRequestVideo from '../../../public/create_payment_request.mp4'
+import PayVideo from '../../../public/pay.mp4'
+import MintCredisVideo from '../../../public/mint_credits.mp4'
+import RedeemCreditsVideo from '../../../public/redeem_credits.mp4'
+
 
 const steps = [
   {
     icon: FileText,
     title: "Create a payment request",
     description: "Generate a payment invoice for your client. Link it to a specific project, milestone, or deliverable.",
+    // img: PaymentRequest,
+    video: CreatePaymentRequestVideo
   },
   {
     icon: Zap,
     title: "Payment settles instantly",
     description: "Your client pays over Bitcoin, Lightning or Spark. Settlement is final, irreversible, and confirmed in seconds.",
+    // img: PaymentCertificate,
+    video: PayVideo
   },
   {
     icon: Award,
     title: "Mint an earned credit",
     description: "After work is completed, issue a self-custodial token to your client. It represents earned value from real work.",
+    // img: Dashboard,
+    video: MintCredisVideo
+
   },
   {
     icon: RotateCcw,
     title: "Client redeems later",
     description: "When the client returns for new work, they redeem their earned credits. Simple, transparent, self-sovereign.",
+    // img: Redeeem,
+    video: RedeemCreditsVideo
   },
 ]
+
 
 export function HowItWorksSection() {
   const ref = useRef<HTMLDivElement>(null)
   const isInView = useInView(ref, { once: true, margin: "-80px" })
 
+  const [selected, setSelected] = useState(0)
+
   return (
     <section id="how-it-works" className="relative overflow-hidden border-t border-border/40 bg-white px-6 py-32 sm:px-10 md:py-40 lg:px-16">
       <div ref={ref} className="mx-auto max-w-[90rem]">
-        {/* Asymmetric header */}
         <div className="grid gap-8 lg:grid-cols-[1fr_2fr]">
           <div className={`transition-all duration-1000 ${isInView ? "translate-y-0 opacity-50" : "translate-y-8 opacity-0"}`}>
             <p className="font-mono text-[11px] font-medium tracking-[0.2em] text-primary uppercase">How it works</p>
@@ -49,28 +72,43 @@ export function HowItWorksSection() {
           </div>
         </div>
 
-        {/* Staggered steps - alternating offset */}
-        <div className="mt-24 grid md:grid-cols-2">
-          {steps.map((item, i) => (
-            <div
-              key={item.title}
-              className={`group relative border-t border-border/40 p-8 transition-all duration-700 md:p-12 ${i % 2 === 1 ? "md:translate-y-0" : ""} ${i >= 2 ? "md:border-t-0" : ""} ${isInView ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}
-              style={{ transitionDelay: isInView ? `${300 + i * 150}ms` : "0ms" }}
-            >
-              {/* Large step number behind */}
-              <div className="pointer-events-none absolute right-8 top-6 font-serif text-[7rem] font-bold leading-none text-primary/[0.08] md:right-12 md:top-8 md:text-[9rem]">
-                {String(i + 1).padStart(2, "0")}
-              </div>
-
-              <div className="relative">
-                <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-background ring-1 ring-border/50 transition-all duration-300 group-hover:ring-primary/30 group-hover:shadow-md">
+        <div className={`flex gap-10 mt-10 not-sm:hidden transition-all duration-1000 delay-200 ${isInView ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}>
+          <div className="flex flex-col gap-2">
+            {steps.map((item, i) => (
+              <div className={`bg-gray-50 flex px-5 py-5 items-center gap-5 rounded-lg transition hover:cursor-pointer ${selected == i ? 'bg-primary/10 text-primary border border-primary/20 ' : 'text-foreground shadow-sm hover:bg-primary/10 hover:scale-102 '}`} key={i} onClick={() => setSelected(i)}>
+                <div className={`flex h-10 w-10 items-center justify-center rounded-2xl p-3 rounded-full text-primary ${selected == i ? 'bg-white' : 'bg-primary/10'}`}>
                   <item.icon className="h-5 w-5 text-primary" />
                 </div>
-                <h3 className="text-xl font-semibold tracking-tight text-card-foreground">{item.title}</h3>
-                <p className="mt-3 max-w-sm text-[15px] leading-[1.7] text-muted-foreground">{item.description}</p>
+                <div className="flex flex-col">
+                  <h3 className="tracking-tight text-lg font-medium">{item.title}</h3>
+                  <p className={`mt-3 max-w-sm text-[15px] leading-[1.7]  ${selected == i ? 'text-foreground' : 'text-muted-foreground'}`}>{item.description}</p>
+                </div>
               </div>
+            ))}
+          </div>
+          <div className="flex-1 flex">
+            <div>
+              <MyPlayer src={steps[selected].video} />
             </div>
-          ))}
+          </div>
+        </div>
+
+        <div className="sm:hidden">
+          <div className="flex flex-col gap-5">
+            {steps.map((item, i) => (
+              <div className={`bg-gray-50 flex px-5 py-5 gap-5 rounded-lg flex-col`} key={i}>
+                <div className="flex items-center gap-2">
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-2xl p-3 rounded-full text-primary bg-primary/10`}>
+                    <item.icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <h3 className="tracking-tight text-lg font-medium">{item.title}</h3>
+                </div>
+                <div>
+                  <MyPlayer src={item.video} />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>
