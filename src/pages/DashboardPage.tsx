@@ -214,13 +214,7 @@ export const DashboardPage = () => {
             const maxNonce = Math.max(...paymentRequests.map(p => p.nonce))
             localStorage.setItem("BITLASSO_PAYMENT_NONCE", maxNonce.toString())
         }
-        setPaymentRequests(paymentRequests.map(p => {
-            if (p.amount == 1) {
-                p.amount = 1000
-            
-            }
-            return p
-        }))
+        setPaymentRequests(paymentRequests)
 
         setTimeout(() => {
             paymentRequests.forEach(payment => {
