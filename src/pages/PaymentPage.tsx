@@ -1,4 +1,4 @@
-import { type TabType } from "@/components/app/receive-tabs"
+import { type TabType } from "@/components/dashboard/receive-tabs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
@@ -22,12 +22,12 @@ import XVerseWhiteLogo from '../../public/xverse_white_logo.png'
 
 import { Separator } from "@/components/ui/separator"
 import { useSettings } from "@/hooks/use-settings"
-import { LoyaltySection } from "@/components/app/loyalty-section"
+import { LoyaltySection } from "@/components/payment/loyalty-section"
 import { FaBitcoin } from "react-icons/fa";
 import { BiSolidZap } from "react-icons/bi";
-import { PaidRequest } from "@/components/app/paid-request"
+import { PaidRequest } from "@/components/payment/paid-request"
 import { IconDiscount } from "@tabler/icons-react"
-import { PaymentRequestInfo } from "@/components/app/payment-request-info"
+import { PaymentRequestInfo } from "@/components/payment/payment-request-info"
 
 type PaymentConfirmation = { transaction: string, settlementMode: string, btcAmount: number }
 

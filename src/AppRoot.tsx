@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import './App.css'
 import App from './App.tsx'
 import { Auth } from './Auth.tsx'
-import { SiteHeader } from '@/components/app/site-header.tsx'
+import { SiteHeader } from '@/components/dashboard/site-header.tsx'
 import { useWallet } from './hooks/use-wallet.tsx'
 import { Spinner } from "@/components/ui/spinner"
 

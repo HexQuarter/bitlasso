@@ -1,4 +1,4 @@
-import type { NotificationSettings } from "@/components/app/notification-setting";
+import type { NotificationSettings } from "@/components/dashboard/notification-setting";
 import { SimplePool, getPublicKey, type Filter, type Event } from "nostr-tools"
 
 import { HDKey } from "@scure/bip32";
@@ -6,7 +6,7 @@ import { bech32 } from "bech32";
 import { bytesToHex, hexToBytes } from "nostr-tools/utils";
 import { mnemonicToSeedSync } from "@scure/bip39";
 import type { Wallet } from "./wallet";
-import type { Receipt } from "@/components/app/receipt-table";
+import type { Receipt } from "@/components/dashboard/receipt-table";
 import type { Settings } from "./api";
 
 const pool = new SimplePool({

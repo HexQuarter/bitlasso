@@ -1,8 +1,8 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { useState } from "react";
 
-import { PassphraseForm } from "@/components/app/passphrase-form";
-import { CreateWalletForm } from "@/components/app/create-wallet-form";
+import { PassphraseForm } from "@/components/dashboard/passphrase-form";
+import { CreateWalletForm } from "@/components/dashboard/create-wallet-form";
 import { useNavigate } from "react-router";
 import { useWallet } from "@/hooks/use-wallet";
 import { ArrowRight } from "lucide-react";

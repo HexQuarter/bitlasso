@@ -7,7 +7,7 @@ import { useParams } from "react-router"
 import LogoPng from '../../public/logo.svg'
 import { fetchPaymentRequest, getBitcoinPrice, type PaymentRequest } from "@/lib/nostr"
 import { useSettings } from "@/hooks/use-settings"
-import { PaidRequest } from "@/components/app/paid-request"
+import { PaidRequest } from "@/components/payment/paid-request"
 
 export const CertPage: React.FC = () => {
     const { id } = useParams()

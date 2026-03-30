@@ -3,7 +3,7 @@ import { Card, CardContent, CardFooter, CardHeader } from "../ui/card";
 import LogoPng from '../../../public/logo.svg'
 import { CheckCircle2, MailIcon } from "lucide-react";
 import type { PaymentRequest } from "@/lib/nostr";
-import { PaymentRequestInfo } from "./payment-request-info";
+import { PaymentRequestInfo } from "../payment/payment-request-info";
 import { PaymentCertificate } from "./payment-certificate";
 
 export const PaidRequest: React.FC<{ paymentRequest: PaymentRequest, btcAmount: number, btcAmountDate?: Date }> = ({ paymentRequest, btcAmount, btcAmountDate }) => {

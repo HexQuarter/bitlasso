@@ -1,4 +1,4 @@
-import type { Bundle } from "@/components/app/activate-payment";
+import type { Bundle } from "@/components/dashboard/activate-payment";
 import type { Wallet } from "./wallet";
 
 export const API_BASE_URL = import.meta.env.DEV ? "http://localhost:3000" : "https://api.bitlasso.xyz";
