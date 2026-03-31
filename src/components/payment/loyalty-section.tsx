@@ -46,7 +46,7 @@ export const LoyaltySection: React.FC<Props> = ({ settings, paymentRequest, hand
         }
 
         setWallet(address);
-        setTimeout(() => posthog?.capture('wallet_connected_for_discount', { payment_id: paymentRequest.id }))
+        void(() => posthog?.capture('wallet_connected_for_discount', { payment_id: paymentRequest.id }))()
 
         setLoadingTokens(true)
 
@@ -90,10 +90,10 @@ export const LoyaltySection: React.FC<Props> = ({ settings, paymentRequest, hand
             setRedeemError(response.error.message)
             return
         }
-        setTimeout(() => posthog?.capture('tokens_redeemed', {
+        void(() => posthog?.capture('tokens_redeemed', {
             payment_id: paymentRequest.id,
             tokens_redeemed: redeemedTokens,
-        }))
+        }))()
     }
 
     useEffect(() => {

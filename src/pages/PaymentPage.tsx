@@ -177,7 +177,7 @@ const PendingPaymentState: React.FC<{
             setAvailableWallet(true)
         }
 
-        setTimeout(() => {
+        void(() => {
             fetch(`https://api.sparkscan.io/v1/tokens/${paymentRequest.tokenId}`)
                 .then(async (r) => {
                     if (r.ok) {
@@ -186,7 +186,7 @@ const PendingPaymentState: React.FC<{
                     }
                 })
                 .catch(console.error)
-        })
+        })()
 
         subscribePayment(settings, paymentRequest.id, (transaction: string, settlementMode: string) => {
             handleConfirmation({ transaction, settlementMode, btcAmount })
@@ -232,7 +232,7 @@ const PendingPaymentState: React.FC<{
                 return
             }
 
-            setTimeout(() => posthog?.capture('payment_completed', { payment_method: 'spark', amount_btc: btcAmount, payment_id: paymentRequest?.id }))
+            void(() => posthog?.capture('payment_completed', { payment_method: 'spark', amount_btc: btcAmount, payment_id: paymentRequest?.id }))()
             setPaymentMade(true)
         }
         else if (selectedPaymentTab == 'btc') {
@@ -246,14 +246,14 @@ const PendingPaymentState: React.FC<{
                 return
             }
 
-            setTimeout(() => posthog?.capture('payment_completed', { payment_method: 'btc', amount_btc: btcAmount, payment_id: paymentRequest?.id }))
+            void(() => posthog?.capture('payment_completed', { payment_method: 'btc', amount_btc: btcAmount, payment_id: paymentRequest?.id }))()
             setPaymentMade(true)
         }
     }
 
     const handleSelectPaymentChange = (tab: TabType) => {
         setSelectedPaymentTab(tab)
-        setTimeout(() => posthog?.capture('payment_method_selected', { payment_method: tab, payment_id: paymentRequest?.id }))
+        void(() => posthog?.capture('payment_method_selected', { payment_method: tab, payment_id: paymentRequest?.id }))()
         if (tab == 'spark') {
             setPaymentAddress(paymentRequest?.sparkAddress)
         }

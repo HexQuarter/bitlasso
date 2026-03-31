@@ -109,7 +109,7 @@ export const DashboardPage = () => {
             const metadata = await wallet.getTokenMetadata().catch(() => null)
             if (metadata) {
                 setTokenMetadata(metadata)
-                setTimeout(async () => await refreshIssuanceStats(wallet, metadata))
+                void (async () => await refreshIssuanceStats(wallet, metadata))()
             }
             setTokenMetadataLoading(false)
         }
@@ -117,7 +117,7 @@ export const DashboardPage = () => {
             setTokenMetadataLoading(false)
         }
 
-        setTimeout(async () => {
+        void (async () => {
             const [btc, spark, ln] = await Promise.all([
                 wallet.getBitcoinAddress(),
                 wallet.getSparkAddress(),
@@ -125,31 +125,29 @@ export const DashboardPage = () => {
             ])
             setAddresses({ btc, spark, ln })
             setWalletLoading(false)
-        })
+        })()
 
-        setTimeout(async () => {
+        void (async () => {
             await refreshPaymentRequests()
             setPaymentRequestLoading(false)
             await refreshReceipts()
             setReceiptLoading(false)
-        })
+        })()
 
-        setTimeout(async () => {
+        void (async () => {
             await updateBalance(wallet)
-            setTimeout(async () => {
                 const payments = await wallet.listPayments()
                 setWalletHistory(payments)
                 setWalletHistoryLoading(false)
-            })
-        })
+        })()
 
-        setTimeout(async () => {
+        void (async () => {
             const prices = await wallet.fetchPrices()
             const p = prices.find(p => p.currency.toUpperCase() == currency.toUpperCase())
             if (p) {
                 setPrice(p.value)
             }
-        }, 0)
+        })()
 
         setInterval(async () => {
             const prices = await wallet.fetchPrices()
@@ -166,12 +164,12 @@ export const DashboardPage = () => {
         if (!wallet) return
         if (startupOnce.current) return
 
-        setTimeout(async () => {
+        void(async () => {
             const notifSettings = await getNotifSettings(wallet)
             if (!notifSettings || (notifSettings.email == undefined && notifSettings.npub == undefined)) {
                 setNotifSettingAlert(true)
             }
-        })
+        })()
 
         fetchData(wallet)
 
@@ -203,7 +201,6 @@ export const DashboardPage = () => {
         })
 
         startupOnce.current = true
-        //   
     }, [wallet])
 
 
@@ -216,7 +213,7 @@ export const DashboardPage = () => {
         }
         setPaymentRequests(paymentRequests)
 
-        setTimeout(() => {
+        void (() => {
             paymentRequests.forEach(payment => {
                 subscribePayment(settings as Settings, payment.id, async (settleTx, settlementMode) => {
                     setPaymentRequests(prev =>
@@ -244,7 +241,7 @@ export const DashboardPage = () => {
                     );
                 })
             })
-        })
+        })()
     }
 
     const refreshReceipts = async () => {
@@ -310,11 +307,11 @@ export const DashboardPage = () => {
             ...prevReceipts
         ])
 
-        setTimeout(() => posthog?.capture('receipt_issued', {
+        void (() => posthog?.capture('receipt_issued', {
             amount: data.mintableTokens,
             has_recipient: !!(data.recipientAddress && data.recipientAddress !== ''),
             token_symbol: tokenMetadata?.symbol,
-        }))
+        }))()
         await refreshIssuanceStats(wallet, tokenMetadata as TokenMetadata)
         setTokenBalances((prev) => addTokenBalance(prev, tokenMetadata, data.mintableTokens))
     }
@@ -360,11 +357,11 @@ export const DashboardPage = () => {
 
         await publishPaymentRequest(txId, wallet, nonce, data.amount, tokenMetadata.identifier, data.discountRate, data.description)
         await refreshPaymentRequests()
-        setTimeout(() => posthog?.capture('payment_request_created', {
+        void (() => posthog?.capture('payment_request_created', {
             amount_usd: data.amount,
             discount_rate: data.discountRate,
             paid_with_credits: !data.feeSats,
-        }))
+        }))()
         toast.success('Payment request created successfully')
     }
 
