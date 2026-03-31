@@ -206,7 +206,7 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
                     case 'paymentSucceeded': {
                         // A payment completed successfully
                         const payment = event.payment
-                        if (this.deliveredEvents.has(payment.id)) return
+                        if (this.deliveredEvents.has(`${payment.paymentType}:${payment.id}`)) return
 
                         if (payment.paymentType == 'receive') {
                             instance.emit('paymentReceived', payment)
@@ -214,26 +214,25 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
                         else {
                             instance.emit('paymentSent', payment)
                         }
-                        this.deliveredEvents.add(payment.id)
+                        this.deliveredEvents.add(`${payment.paymentType}:${payment.id}`)
                         break
                     }
                     case 'paymentPending': {
                         // A payment is pending (waiting for confirmation)
                         const pendingPayment = event.payment
-                        if (this.deliveredEvents.has(pendingPayment.id)) return
+                        if (this.deliveredEvents.has(`pending:${pendingPayment.id}`)) return
 
                         instance.emit('paymentPending', pendingPayment)
-                        this.deliveredEvents.add(pendingPayment.id)
+                        this.deliveredEvents.add(`pending:${pendingPayment.id}`)
                         break
                     }
                     case 'paymentFailed': {
                         // A payment failed
                         const failedPayment = event.payment
-                        instance.emit('paymentFailed', failedPayment)
+                        if (this.deliveredEvents.has(`failed:${failedPayment.id}`)) return
 
-                        if (this.deliveredEvents.has(failedPayment.id)) return
-                        this.deliveredEvents.add(failedPayment.id)
-                        
+                        instance.emit('paymentFailed', failedPayment)
+                        this.deliveredEvents.add(`failed:${failedPayment.id}`)
                         break
                     }
                     default: {
