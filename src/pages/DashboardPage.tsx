@@ -131,9 +131,9 @@ export const DashboardPage = () => {
 
         void (async () => {
             await updateBalance(wallet)
-                const payments = await wallet.listPayments()
-                setWalletHistory(payments)
-                setWalletHistoryLoading(false)
+            const payments = await wallet.listPayments()
+            setWalletHistory(payments)
+            setWalletHistoryLoading(false)
         })()
 
         void (async () => {
@@ -195,7 +195,7 @@ export const DashboardPage = () => {
             await refreshBalance()
         })
 
-        startupOnce.current = true
+        startupOnce.current = true 
     }, [wallet])
 
 
@@ -220,7 +220,7 @@ export const DashboardPage = () => {
                     );
 
                     // Claim immediately on settlement event
-                        await attemptClaim(wallet, payment.nonce)
+                    await attemptClaim(wallet, payment.nonce)
                 })
 
                 subscribeRedeem(settings as Settings, payment.id, (redeemAmount, redeemTx) => {
@@ -252,7 +252,7 @@ export const DashboardPage = () => {
         try {
             const { tokenId } = await wallet.createToken(name, symbol, 0n, 1, false)
             console.log('Token created with ID:', tokenId)
-            setTimeout(() => posthog?.capture('loyalty_token_created', { token_name: name, token_symbol: symbol }))
+            void(() => posthog?.capture('loyalty_token_created', { token_name: name, token_symbol: symbol }))()
 
             const metadata = await wallet.getTokenMetadata()
             setTokenMetadata(metadata)
