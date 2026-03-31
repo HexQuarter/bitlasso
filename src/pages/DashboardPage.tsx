@@ -71,32 +71,37 @@ export const DashboardPage = () => {
     }
 
     const attemptClaim = async (wallet: Wallet, nonce: number, attempt = 0) => {
-        const sweptKey = `BITLASSO_SWEPT_${nonce}`
+        if (attempt > 5) {
+            return
+        }
         try {
             console.log("Attempt claim", nonce)
             await claimBalance(wallet, nonce)
-            localStorage.setItem(sweptKey, 'true')
         } catch (err: any) {
+            console.log(`Claim attempt ${attempt} for nonce ${nonce} failed:`, err.message)
             setTimeout(() => attemptClaim(wallet, nonce, attempt + 1), 2000)
         }
     }
 
     const claimBalance = async (wallet: Wallet, nonce: number) => {
         const requestSdk = await wallet.withAccountNumber(nonce)
+        try {
+            const unclaimedBitcoinDeposits = await requestSdk.listUnclaimDeposits()
 
-        const unclaimedBitcoinDeposits = await requestSdk.listUnclaimDeposits()
+            await Promise.all(unclaimedBitcoinDeposits.map(d => requestSdk.claimDeposit(d.txid, d.vout)))
 
-        await Promise.all(unclaimedBitcoinDeposits.map(d => requestSdk.claimDeposit(d.txid, d.vout)))
+            const balance = await requestSdk.getBalance(true)
+            const satsBalance = Number(balance.balance)
 
-        const balance = await requestSdk.getBalance(true)
-        const satsBalance = Number(balance.balance)
-
-        if (satsBalance > 0) {
-            const sparkAddress = await wallet.getSparkAddress()
-            console.log('claiming from sub account', nonce, satsBalance)
-            await requestSdk.sendSparkPayment(sparkAddress, satsBalance)
+            if (satsBalance > 0) {
+                const sparkAddress = await wallet.getSparkAddress()
+                console.log('claiming from sub account', nonce, satsBalance)
+                await requestSdk.sendSparkPayment(sparkAddress, satsBalance)
+            }
         }
-        await requestSdk.disconnect()
+        finally {
+            await requestSdk.disconnect()
+        }
     }
 
     const fetchData = async (wallet: Wallet) => {
@@ -159,7 +164,7 @@ export const DashboardPage = () => {
         if (!wallet) return
         if (startupOnce.current) return
 
-        void(async () => {
+        void (async () => {
             const notifSettings = await getNotifSettings(wallet)
             if (!notifSettings || (notifSettings.email == undefined && notifSettings.npub == undefined)) {
                 setNotifSettingAlert(true)
@@ -195,7 +200,7 @@ export const DashboardPage = () => {
             await refreshBalance()
         })
 
-        startupOnce.current = true 
+        startupOnce.current = true
     }, [wallet])
 
 
@@ -252,7 +257,7 @@ export const DashboardPage = () => {
         try {
             const { tokenId } = await wallet.createToken(name, symbol, 0n, 1, false)
             console.log('Token created with ID:', tokenId)
-            void(() => posthog?.capture('loyalty_token_created', { token_name: name, token_symbol: symbol }))()
+            void (() => posthog?.capture('loyalty_token_created', { token_name: name, token_symbol: symbol }))()
 
             const metadata = await wallet.getTokenMetadata()
             setTokenMetadata(metadata)
