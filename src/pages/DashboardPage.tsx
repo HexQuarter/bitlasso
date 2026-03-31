@@ -82,10 +82,6 @@ export const DashboardPage = () => {
     }
 
     const claimBalance = async (wallet: Wallet, nonce: number) => {
-        // Check local cache first
-        const sweptKey = `BITLASSO_SWEPT_${nonce}`
-        if (localStorage.getItem(sweptKey) === 'true') return
-
         const requestSdk = await wallet.withAccountNumber(nonce)
 
         const unclaimedBitcoinDeposits = await requestSdk.listUnclaimDeposits()
@@ -99,7 +95,6 @@ export const DashboardPage = () => {
             const sparkAddress = await wallet.getSparkAddress()
             console.log('claiming from sub account', nonce, satsBalance)
             await requestSdk.sendSparkPayment(sparkAddress, satsBalance)
-            localStorage.setItem(sweptKey, 'true')
         }
         await requestSdk.disconnect()
     }
@@ -225,10 +220,7 @@ export const DashboardPage = () => {
                     );
 
                     // Claim immediately on settlement event
-                    const sweptKey = `BITLASSO_SWEPT_${payment.nonce}`
-                    if (localStorage.getItem(sweptKey) !== 'true') {
                         await attemptClaim(wallet, payment.nonce)
-                    }
                 })
 
                 subscribeRedeem(settings as Settings, payment.id, (redeemAmount, redeemTx) => {
