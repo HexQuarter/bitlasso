@@ -1,5 +1,5 @@
 import type { NotificationSettings } from "@/components/dashboard/notification-setting";
-import { SimplePool, getPublicKey, type Filter, type Event } from "nostr-tools"
+import { SimplePool, getPublicKey, type Filter, type Event, type NostrEvent } from "nostr-tools"
 
 import { HDKey } from "@scure/bip32";
 import { bech32 } from "bech32";
@@ -49,45 +49,80 @@ export const getNostrKeyPair = (mnemonic: string): NostrKeyPair => {
     }
 }
 
-const fetchAndSync = async (filter: Filter) => {
-    // Query each relay individually to know which has what
-    const results = await Promise.all(
-        RELAYS.map(async relay => ({
-            relay,
-            events: await pool.querySync([relay], filter).catch(() => [] as Event[]),
-        }))
-    );
+const fetchRelayEvents = async (relay: string, filter: Filter) => {
+    try {
+        const events = await pool.querySync([relay], filter)
+        return { relay, events }
+    } catch {
+        return { relay, events: [] as Event[] }
+    }
+}
 
-    // Collect all unique events across all relays
-    const allIds = new Set<string>();
-    const merged: Event[] = [];
+const mergeEvents = (results: Array<{ relay: string, events: Event[] }>) => {
+    const allIds = new Set<string>()
+    const merged: Event[] = []
     for (const { events } of results) {
         for (const e of events) {
             if (!allIds.has(e.id)) {
-                allIds.add(e.id);
-                merged.push(e);
+                allIds.add(e.id)
+                merged.push(e)
             }
         }
     }
+    return merged
+}
 
-    if (merged.length === 0) return [];
-
-    // For each relay, push events it's missing
+const replicateMissing = async (results: Array<{ relay: string, events: Event[] }>, merged: Event[]) => {
     await Promise.allSettled(
         results.map(({ relay, events }) => {
-            const relayIds = new Set(events.map(e => e.id));
-            const missing = merged.filter(e => !relayIds.has(e.id));
+            const relayIds = new Set(events.map(e => e.id))
+            const missing = merged.filter(e => !relayIds.has(e.id))
 
-            if (missing.length === 0) return Promise.resolve();
+            if (missing.length === 0) return Promise.resolve()
 
-            console.log(`pushing ${missing.length} missing events to ${relay}`);
+            console.log(`pushing ${missing.length} missing events to ${relay}`)
             return Promise.allSettled(
                 missing.map(e => pool.publish([relay], e))
-            );
+            )
         })
-    );
+    )
+}
 
-    return merged;
+const fetchAndSync = async (filter: Filter) => {
+    const primaryResult = await fetchRelayEvents(BACKEND_RELAY, filter)
+    const backupPromises = BACKUP_RELAIS.map(relay => fetchRelayEvents(relay, filter))
+
+    if (primaryResult.events.length > 0) {
+        void (async () => {
+            const backupResults = await Promise.all(backupPromises)
+            const merged = mergeEvents([primaryResult, ...backupResults])
+            await replicateMissing([primaryResult, ...backupResults], merged)
+        })()
+        return primaryResult.events
+    }
+
+    const firstBackup = await Promise.any(
+        backupPromises.map(async promise => {
+            const result = await promise
+            if (result.events.length === 0) throw new Error('no-events')
+            return result
+        })
+    ).catch(() => null as { relay: string, events: Event[] } | null)
+
+    if (firstBackup) {
+        void (async () => {
+            const backupResults = await Promise.all(backupPromises)
+            const merged = mergeEvents([primaryResult, ...backupResults])
+            await replicateMissing([primaryResult, ...backupResults], merged)
+        })()
+        return firstBackup.events
+    }
+
+    const backupResults = await Promise.all(backupPromises)
+    const merged = mergeEvents([primaryResult, ...backupResults])
+    await replicateMissing([primaryResult, ...backupResults], merged)
+
+    return merged
 }
 
 const subscribeAndSync = (
@@ -138,7 +173,8 @@ export const registerNotifSettings = async (wallet: Wallet, notifSettings: Notif
     }
 
     const signedEvent = wallet.signNostrEvent(event);
-    await pool.publish(RELAYS, signedEvent)
+    await Promise.any(pool.publish(RELAYS, signedEvent))
+    return signedEvent.id
 }
 
 export const getNotifSettings = async (wallet: Wallet): Promise<NotificationSettings | undefined> => {
@@ -163,33 +199,10 @@ export const fetchPaymentsRequest = async (settings: Settings, wallet: Wallet): 
 
     if (events.length == 0) return []
 
-    return await Promise.all(events.map(async (e) => {
-        const { id, content, created_at } = e
-        let paymentRequest = JSON.parse(content) as PaymentRequest
-        paymentRequest.id = id
-        paymentRequest.createdAt = new Date(created_at * 1000)
-
-        try {
-            const paymentDetails = await fetchPaymentDetails(settings, id)
-            if (paymentDetails) {
-                const { settlementMode, transaction } = paymentDetails
-                paymentRequest.settleTx = transaction
-                paymentRequest.settlementMode = settlementMode
-            }
-
-            const redeemDetails = await fetchRedeemDetails(settings, id)
-            if (redeemDetails) {
-                paymentRequest.redeemAmount = redeemDetails.redeemAmount
-                paymentRequest.redeemTx = redeemDetails.transaction
-            }
-        }
-        catch (e) {
-            console.log(e)
-        }
-        finally {
-            return paymentRequest
-        }
-    }))
+    const promiseResults = await Promise.allSettled(events.map(e => eventToPaymentRequest(settings, e)))
+    return promiseResults
+        .filter(p => p.status == 'fulfilled')
+        .map(p => p.value)
 }
 
 export const fetchPaymentRequest = async (settings: Settings, id: string): Promise<PaymentRequest> => {
@@ -203,25 +216,31 @@ export const fetchPaymentRequest = async (settings: Settings, id: string): Promi
         throw new Error('Payment not found')
     }
 
-    const { content, created_at } = events[0]
-    let paymentRequest = JSON.parse(content) as PaymentRequest
-    paymentRequest.id = id
-    paymentRequest.createdAt = new Date(created_at * 1000)
+    return eventToPaymentRequest(settings, events[0])
+}
 
-    const paymentDetails = await fetchPaymentDetails(settings, id)
-    if (paymentDetails) {
-        const { settlementMode, transaction } = paymentDetails
-        paymentRequest.settleTx = transaction
-        paymentRequest.settlementMode = settlementMode
+const eventToPaymentRequest = async (settings: Settings, event: NostrEvent) => {
+    try {
+        const { id, created_at, content } = event
+        let paymentRequest = JSON.parse(content) as PaymentRequest
+        paymentRequest.id = id
+        paymentRequest.createdAt = new Date(created_at * 1000)
+        const [paymentDetails, redeemDetails] = await Promise.all([fetchPaymentDetails(settings, paymentRequest.id), fetchRedeemDetails(settings, paymentRequest.id)])
+        if (paymentDetails) {
+            const { settlementMode, transaction } = paymentDetails
+            paymentRequest.settleTx = transaction
+            paymentRequest.settlementMode = settlementMode
+        }
+
+        if (redeemDetails) {
+            paymentRequest.redeemAmount = redeemDetails.redeemAmount
+            paymentRequest.redeemTx = redeemDetails.transaction
+        }
+        return paymentRequest
     }
-
-    const redeemDetails = await fetchRedeemDetails(settings, id)
-    if (redeemDetails) {
-        paymentRequest.redeemAmount = redeemDetails.redeemAmount
-        paymentRequest.redeemTx = redeemDetails.transaction
+    catch (e) {
+        throw e
     }
-
-    return paymentRequest
 }
 
 const fetchPaymentDetails = async (settings: Settings, requestId: string) => {
@@ -296,7 +315,8 @@ export const publishReceiptMetadata = async (wallet: Wallet, transactionId: stri
     }
 
     const signedEvent = wallet.signNostrEvent(event);
-    await pool.publish(RELAYS, signedEvent)
+    await Promise.any(pool.publish(RELAYS, signedEvent))
+    return signedEvent.id
 }
 
 export const listReceipts = async (wallet: Wallet): Promise<Receipt[]> => {
