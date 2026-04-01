@@ -6,7 +6,7 @@ import { Menu, X } from "lucide-react"
 const links = [
     { label: "Problem", href: "#problem" },
     { label: "How It Works", href: "#how-it-works" },
-    { label: "Real Rewards", href: "#why-bitcoin" },
+    { label: "Real Rewards", href: "#orwa" },
     // { label: "oRWA", href: "#orwa" },
     // { label: "Decentralized", href: "#decentralized" },
     // { label: "Self-custodial", href: "#self-custody"},

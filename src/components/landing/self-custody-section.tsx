@@ -21,11 +21,11 @@ export function SelfCustodySection() {
         {/* Full-width dramatic heading */}
         <div className={`mb-20 transition-all duration-1000 ${isInView ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}>
           <p className="mb-5 font-mono text-[11px] font-medium tracking-[0.2em] text-primary uppercase">Self-custodial</p>
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <h2 className="max-w-3xl font-serif text-[clamp(2rem,5vw,4.25rem)] font-normal leading-[1.05] tracking-tight text-foreground">
-              Your keys.<br className="hidden sm:block" /> Your clients.<br className="hidden sm:block" /> Your business.
+          <div className="flex flex-col gap-6">
+            <h2 className="font-serif text-[clamp(2rem,5vw,4.25rem)] font-normal leading-[1.05] tracking-tight text-foreground">
+              <span className="text-primary">Your</span> keys. <br /><span className="text-primary">Your</span> clients. <br /><span className="text-primary">Your</span> business.
             </h2>
-            <p className="max-w-md text-pretty text-lg leading-[1.7] text-muted-foreground lg:text-right">
+            <p className=" text-pretty text-lg leading-[1.7] text-muted-foreground">
               With a self-custodial wallet, you remain in control with total ownership. You are the sole owner of your assets.
             </p>
           </div>

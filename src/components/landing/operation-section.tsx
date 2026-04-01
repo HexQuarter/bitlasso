@@ -5,17 +5,17 @@ import { FileCheck, Handshake, ShieldCheck } from "lucide-react"
 import { useInView } from "@/hooks/use-in-view"
 
 const receipts = [
-  { icon: FileCheck, label: "Proof that work was completed" },
-  { icon: Handshake, label: "Proof that value was delivered" },
-  { icon: ShieldCheck, label: "Proof that trust was earned" },
+  { icon: FileCheck, label: "Receipt for completed work" },
+  { icon: Handshake, label: "Receipt for delivered value" },
+  { icon: ShieldCheck, label: "Receipt for earned trust" },
 ]
 
 const facts = [
-  "Not securities, not financial instruments, not speculative assets",
-  "Merchants control issuance rules and redemption terms",
-  "No secondary market, no trading, no price fluctuation",
-  "Designed for repeat business, not financial engineering",
-  "Fully transparent between merchant and client",
+  "Not speculative tokens — they are operational receipts",
+  "Merchants keep the Bitcoin they receive",
+  "No percentage fee on each transaction",
+  "Payments settle directly to your wallet",
+  "Built for repeat business, not financial engineering",
 ]
 
 export function OperationalSection() {
@@ -23,16 +23,16 @@ export function OperationalSection() {
   const isInView = useInView(ref, { once: true, margin: "-80px" })
 
   return (
-    <section id="orwa" className="relative overflow-hidden border-t border-border/40 bg-primary/5 px-6 py-32 sm:px-10 md:py-40 lg:px-16">
+    <section id="orwa" className="relative overflow-hidden border-t border-border/40  bg-slate-50 px-6 py-32 sm:px-10 md:py-40 lg:px-16">
       <div ref={ref} className="mx-auto max-w-[90rem]">
         {/* Large typographic statement */}
         <div className={`mb-24 transition-all duration-1000 ${isInView ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}>
           <p className="mb-5 font-mono text-[11px] font-medium tracking-[0.2em] text-primary uppercase">Operational, not speculative</p>
           <h2 className="max-w-4xl font-serif text-[clamp(2rem,4.5vw,3.75rem)] font-normal leading-[1.1] tracking-tight text-foreground">
-            Our tokens are not financial instruments
+            This is a payments tool, not a token market
           </h2>
           <p className="mt-6 max-w-xl text-pretty text-lg leading-[1.7] text-muted-foreground">
-            They are operational receipts. Each token represents real work, real value, and real trust.
+            BitLasso is built around real transactions: proof of work, proof of value, and proof that your funds remain under your control.
           </p>
         </div>
 
