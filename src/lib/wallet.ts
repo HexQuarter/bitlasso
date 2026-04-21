@@ -617,7 +617,7 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
                 }
 
                 const prepareResponseLnAddress = await this.sdk.prepareLnurlPay({
-                    amountSats,
+                    amount: BigInt(amountSats),
                     payRequest: parsedInvoice.payRequest
                 })
 
@@ -636,7 +636,7 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
                 }
 
                 const prepareResponseLnPay = await this.sdk.prepareLnurlPay({
-                    amountSats,
+                    amount: BigInt(amountSats),
                     payRequest: parsedInvoice
                 })
 
