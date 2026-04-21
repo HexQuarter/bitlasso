@@ -282,7 +282,7 @@ const PendingPaymentState: React.FC<{
         <div className="flex flex-col lg:py-20">
             <Card className="flex flex-col gap-10 p-0 gap-0 shadow-xs not-sm:rounded-none">
                 <CardHeader className='flex flex-col md:flex-row p-0! md:items-center justify-between border-b border-border/60 p-4!'>
-                    <div className="flex gap-2 items-center ">
+                    <div className="flex gap-2 items-center hover:cursor-pointer" onClick={() => window.open('/', 'blank')} >
                         <img src={LogoPng} className='w-8' />
                         <div className='font-serif text-2xl tracking-tight text-foreground flex items-center'>
                             <span className='text-primary'>bit</span>

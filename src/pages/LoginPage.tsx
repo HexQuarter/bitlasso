@@ -58,7 +58,7 @@ export const LoginPage = () => {
 
                 {/* Logo */}
                 <div className="relative z-10">
-                    <div className='flex items-center gap-2'>
+                    <div className='flex items-center gap-2 hover:cursor-pointer' onClick={() => window.open('/', 'blank')} >
                         <img src={LogoPng} className='w-10' />
                         <div className='font-serif tracking-tighter text-foreground flex items-center'>
                             <p className="flex gap-2 items-end">
@@ -100,7 +100,7 @@ export const LoginPage = () => {
             <div className="lg:col-2 lg:col-span-4 flex flex-1 items-center justify-center px-6 py-12 lg:px-12 bg-slate-50 min-h-screen">
                 <div className="w-full max-w-lg lg:max-w-2xl">
                     {/* Mobile logo */}
-                    <div className="mb-10 lg:hidden">
+                    <div className="mb-10 lg:hidden hover:cursor-pointer" onClick={() => window.open('/', 'blank')} >
                         <a href="/" className="">
                             <div className='flex items-center justify-center gap-2'>
                                 <img src={LogoPng} className='w-10' />
