@@ -214,7 +214,8 @@ export const DashboardPage = () => {
         setPaymentRequests(paymentRequests)
 
         void (() => {
-            paymentRequests.forEach(payment => {
+            // Sync the last ones first: reverse order so newest payments get subscribed first
+            [...paymentRequests].reverse().forEach(payment => {
                 subscribePayment(settings as Settings, payment.id, async (settleTx, settlementMode) => {
                     setPaymentRequests(prev =>
                         prev.map(p =>
