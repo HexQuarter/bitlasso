@@ -135,7 +135,7 @@ export const WalletCard: React.FC<Props> = ({ satsBalance, tokens, addresses, pr
                     </Alert>
                 }
                 <div className="flex gap-3">
-                    <Send assets={assets} price={price} onSend={onSend} wallet={wallet} />
+                    {satsBalance > 0 && <Send assets={assets} price={price} onSend={onSend} wallet={wallet} />}
                     <Receive addresses={addresses} />
                 </div>
                 {walletHistoryLoading &&

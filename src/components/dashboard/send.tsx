@@ -1,16 +1,14 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { AssetSelector } from "./asset-selector";
-import { DialogDescription } from "@radix-ui/react-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import type { Wallet } from "@/lib/wallet";
 import { ArrowUp } from "lucide-react";
+import { FaBitcoin } from "react-icons/fa";
 
 export type Asset = {
     name: string
@@ -32,24 +30,15 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
     const [open, setOpen] = useState(false)
     const [recipient, setRecipient] = useState<undefined | string>(undefined)
     const [amount, setAmount] = useState(0)
-    const [selectedAsset, setSelectedAsset] = useState<Asset>(assets[0])
+    const [selectedAsset, setSelectedAsset] = useState<Asset | undefined>(undefined)
     const [loading, setLoading] = useState(false)
-    const [method, setMethod] = useState<'spark' | 'lightning' | 'bitcoin'>('spark')
+    const [method, setMethod] = useState<'spark' | 'lightning' | 'bitcoin'| undefined>(undefined)
     const [recipientError, setRecipientError] = useState<undefined | string>(undefined)
     const [fee, setFee] = useState<undefined | number>(undefined)
     const [loadingFee, setLoadingFee] = useState(false)
 
-    useEffect(() => {
-        setSelectedAsset(assets[0])
-    }, [assets])
-
-    const handleSelectedAsset = (asset: Asset) => {
-        setSelectedAsset(asset)
-        setAmount(0)
-        setFee(undefined)
-    }
-
     const handleChangeAmount = async (val: string) => {
+        if (!selectedAsset) return
         setFee(undefined)
         const amount = Number(val)
         if (isNaN(amount) || amount == 0) {
@@ -91,15 +80,12 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
     }
 
     const setMaxAmount = async () => {
+        if (!selectedAsset) return
         await handleChangeAmount(selectedAsset.max.toString())
-    }
-    const onTabChange = (value: string) => {
-        setMethod(value as 'spark' | 'lightning' | 'bitcoin')
-        cleanUp()
     }
 
     const handleSend = async () => {
-        if (amount > 0 && recipient) {
+        if (selectedAsset && amount > 0 && recipient && method) {
             setLoading(true)
             try {
                 await onSend(method, selectedAsset, amount, recipient)
@@ -118,11 +104,11 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
     const handleOpenChange = (open: boolean) => {
         setOpen(open)
         cleanUp()
-        setMethod('spark')
+        setMethod(undefined)
     }
 
     const cleanUp = () => {
-        setSelectedAsset(assets[0])
+        setSelectedAsset(undefined)
         setAmount(0)
         setRecipient(undefined)
         setRecipientError(undefined)
@@ -143,25 +129,12 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
                 return
             }
             try {
-                const validAddress = await wallet.validAddress(r, method)
-                if (!validAddress) {
-                    if (method != 'lightning') {
-                        setRecipientError('Invalid recipient address')
-                    }
-                    else {
-                        setRecipientError('Invalid recipient invoice/address')
-                    }
-                    return
-                }
+                const recipientType = await wallet.parseRecipient(r)
+                setMethod(recipientType)
                 setRecipient(r)
             }
             catch (e) {
-                if (method != 'lightning') {
-                    setRecipientError('Invalid recipient address')
-                }
-                else {
-                    setRecipientError('Invalid recipient invoice/address')
-                }
+                setRecipientError('Invalid recipient address')
             }
         }, 100)
     }
@@ -179,110 +152,51 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
             <DialogContent className="bg-slate-50 flex flex-col gap-10">
                 <DialogHeader>
                     <DialogTitle className="font-serif text-3xl font-light">Send funds</DialogTitle>
-                    <DialogDescription></DialogDescription>
                 </DialogHeader>
                 <Card>
-                    <Tabs defaultValue="spark" className="flex flex-col gap-10" onValueChange={onTabChange} value={method}>
-                        <TabsList className="bg-transparent p-0 border-border/40 border-b-1 w-full">
-                            <TabsTrigger value={"spark"} className="font-mono uppercase text-xs p-5 data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent data-[state=active]:text-primary text-gray-300">Spark</TabsTrigger>
-                            <TabsTrigger value={"lightning"} className="font-mono uppercase text-xs p-5 data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent data-[state=active]:text-primary text-gray-300">Lightning</TabsTrigger>
-                            <TabsTrigger value={"bitcoin"} className="font-mono uppercase text-xs p-5 data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent data-[state=active]:text-primary text-gray-300">Bitcoin</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="spark" className="flex flex-col gap-5">
-                            <h2 className="font-semibold text-xl">Send via Spark</h2>
-                            <p className="text-muted-foreground text-sm">Instant and free transfers between Spark users with complete privacy.</p>
-                            <div className="flex flex-col gap-5 w-full">
-                                <AssetSelector assets={assets} onSelected={handleSelectedAsset} />
-                                <div className="flex flex-col gap-4 my-4">
-                                    <div className="grid gap-3">
-                                        <Label htmlFor="address">Recipient address</Label>
-                                        <Input required id="address" onChange={(e) => handleRecipientChange(e.target.value)} placeholder="spark...." />
-                                        {recipientError && <p className="text-primary text-xs">{recipientError}</p>}
-                                    </div>
-                                    <div className="grid gap-3">
-                                        <Label htmlFor="amount">Amount of {selectedAsset.symbol} to send</Label>
-                                        <Input required id="amount" type='number' inputMode="numeric" min={0} onChange={(e) => handleChangeAmount(e.target.value)} placeholder="0" value={amount} />
-                                        <div className="flex md:flex-row flex-col gap-1 justify-between md:items-center">
-                                            <div>
-                                                {selectedAsset.symbol == 'sat' && <span className="text-xs">Sending: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format((amount / 100_000_000) * price)}</span>}
-                                            </div>
-                                            <div className="flex gap-1 items-center">
-                                                {amount != selectedAsset.max && <Badge className="bg-gray-100 text-gray-400 border-gray-200 font-light pl-2 pr-2 hover:cursor-pointer hover:bg-gray-200 hover:text-gray-500" onClick={() => setMaxAmount()}>Max</Badge>}
-                                                <span className="text-xs">{selectedAsset.max} {selectedAsset.symbol} {selectedAsset.symbol == 'BTC' && <span>({new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format((selectedAsset.max / 100_000_000) * price)})</span>}</span>
-                                            </div>
-                                        </div>
-                                        {amount > selectedAsset.max && <span className="items-center flex text-xs text-primary font-semibold">Insufficient funds. <br />The amount entered is greater than your balance ({selectedAsset.max} {selectedAsset.symbol})</span>}
-                                        {loadingFee && <span className="text-xs flex items-center gap-2">Estimated fee: <Spinner /></span>}
-                                        {!loadingFee && fee !== undefined && <span className="text-xs">Estimated fee: {fee} sat ({new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format((fee / 100_000_000) * price)})</span>}
-                                    </div>
+                    {assets.map((asset) => (
+                        <div key={asset.symbol} className={`flex items-center gap-2 hover:bg-primary/10 cursor-pointer p-2 rounded-sm ${selectedAsset?.symbol == asset.symbol ? 'bg-primary/10' : ''}`} onClick={() => setSelectedAsset(asset)}>
+                            <div className="p-2 rounded-full">
+                                {asset.name == 'Bitcoin' && <div className="text-primary"><FaBitcoin className="h-6 w-6" /></div>}
+                                {asset.name != 'Bitcoin' && <div className="bg-black"><svg width="10" height="10" viewBox="0 0 68 65" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M39.7159 25.248L40.8727 0.570312H26.4219L27.5787 25.2483L4.46555 16.5221L0 30.2656L23.8282 36.7915L8.38717 56.0763L20.0781 64.5703L33.6483 43.9245L47.2179 64.5695L58.9089 56.0755L43.4679 36.7909L67.2937 30.2657L62.8281 16.5221L39.7159 25.248ZM33.6472 33.6013L33.647 33.6007H33.6466L33.6462 33.6021L33.6472 33.6013Z" fill="#fff" />
+                                </svg></div>}
+                            </div>
+                            <span className="text-sm text-muted-foreground">{asset.name}</span>
+                        </div>
+                    ))}
+
+                    {selectedAsset &&
+                        <div className="flex flex-col gap-2">
+                            <Label htmlFor="address">Recipient address</Label>
+                            <Input required id="address" onChange={(e) => handleRecipientChange(e.target.value)} placeholder="Enter address" />
+                            {recipientError && <p className="text-primary text-xs">{recipientError}</p>}
+                        </div>
+                    }
+                    {selectedAsset && recipient &&
+                        <div className="flex flex-col gap-2">
+                            <Label htmlFor="amount">Amount of {selectedAsset.symbol} to send</Label>
+                            <Input required id="amount" type='number' inputMode="numeric" min={0} onChange={(e) => handleChangeAmount(e.target.value)} placeholder="0" value={amount} />
+                            <div className="flex md:flex-row flex-col gap-1 justify-between md:items-center">
+                                <div>
+                                    {selectedAsset.name == 'Bitcoin' && <span className="text-xs">Sending: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format((amount / 100_000_000) * price)}</span>}
+                                </div>
+                                <div className="flex gap-1 items-center">
+                                    {amount != selectedAsset.max && <Badge className="bg-gray-100 text-gray-400 border-gray-200 font-light pl-2 pr-2 hover:cursor-pointer hover:bg-gray-200 hover:text-gray-500" onClick={() => setMaxAmount()}>Max</Badge>}
+                                    <span className="text-xs">{selectedAsset.max} {selectedAsset.symbol} {selectedAsset.name == 'Bitcoin' && <span>({new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format((selectedAsset.max / 100_000_000) * price)})</span>}</span>
                                 </div>
                             </div>
-                        </TabsContent>
-                        <TabsContent value="lightning" className="flex flex-col gap-5">
-                            <h2 className="font-semibold text-xl">Send via Lightning</h2>
-                            <p className="text-muted-foreground text-sm">Fast global payments, reaching any Lightning wallet worldwide.</p>
-                            <div className="flex flex-col gap-5 w-full">
-                                <div className="flex flex-col gap-4 my-4">
-                                    <div className="grid gap-3">
-                                        <Label htmlFor="address">Invoice or address</Label>
-                                        <Input required id="address" onChange={(e) => handleRecipientChange(e.target.value)} placeholder="ln...." />
-                                        {recipientError && <p className="text-primary text-xs">{recipientError}</p>}
-                                    </div>
-                                    <div className="grid gap-3">
-                                        <Label htmlFor="amount">Amount of BTC to send</Label>
-                                        <Input required id="amount" type='number' inputMode="numeric" min={0} onChange={(e) => handleChangeAmount(e.target.value)} placeholder="0" value={amount} />
-                                        <div className="flex md:flex-row flex-col gap-1 justify-between md:items-center">
-                                            <div>
-                                                <span className="text-xs">Sending: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format((amount / 100_000_000) * price)}</span>
-                                            </div>
-                                            <div className="flex gap-1 items-center">
-                                                {amount != selectedAsset.max && <Badge className="bg-gray-100 text-gray-400 border-gray-200 font-light pl-2 pr-2 hover:cursor-pointer hover:bg-gray-200 hover:text-gray-500" onClick={() => setMaxAmount()}>Max</Badge>}
-                                                <span className="text-xs">{selectedAsset.max} {selectedAsset.symbol} <span>({new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format((selectedAsset.max / 100_000_000)* price)})</span></span>
-                                            </div>
-                                        </div>
-                                        {amount > selectedAsset.max && <span className="items-center flex text-xs text-primary font-semibold">Insufficient funds. <br />The amount entered is greater than your balance ({selectedAsset.max} {selectedAsset.symbol})</span>}
-                                        {loadingFee && <span className="text-xs flex items-center gap-2">Estimated fee: <Spinner /></span>}
-                                        {!loadingFee && fee !== undefined && <span className="text-xs">Estimated fee: {fee} sat ({new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format((fee / 100_000_000) * price)})</span>}
-                                    </div>
-                                </div>
-                            </div>
-                        </TabsContent>
-                        <TabsContent value="bitcoin" className="flex flex-col gap-5">
-                            <h2 className="font-semibold text-xl">Send via Bitcoin</h2>
-                            <p className="text-muted-foreground text-sm">Secure on-chain settlement with maximum security and global accessibility.</p>
-                            <div className="flex flex-col gap-5 w-full">
-                                <div className="flex flex-col gap-4 my-4">
-                                    <div className="grid gap-3">
-                                        <Label htmlFor="address">Recipient address</Label>
-                                        <Input required id="address" onChange={(e) => handleRecipientChange(e.target.value)} placeholder="bc...." />
-                                        {recipientError && <p className="text-primary text-xs">{recipientError}</p>}
-                                    </div>
-                                    <div className="grid gap-3">
-                                        <Label htmlFor="amount">Amount of BTC to send</Label>
-                                        <Input required id="amount" type='number' inputMode="numeric" min={0} onChange={(e) => handleChangeAmount(e.target.value)} placeholder="0" value={amount} />
-                                        <div className="flex md:flex-row flex-col gap-1 justify-between md:items-center">
-                                            <div>
-                                                <span className="text-xs">Sending: {new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format((amount / 100_000_000) * price)}</span>
-                                            </div>
-                                            <div className="flex gap-1 items-center">
-                                                {amount != selectedAsset.max && <Badge className="bg-gray-100 text-gray-400 border-gray-200 font-light pl-2 pr-2 hover:cursor-pointer hover:bg-gray-200 hover:text-gray-500" onClick={() => setMaxAmount()}>Max</Badge>}
-                                                <span className="text-xs">{selectedAsset.max} {selectedAsset.symbol} <span>({new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format((selectedAsset.max / 100_000_000) * price)})</span></span>
-                                            </div>
-                                        </div>
-                                        {amount > selectedAsset.max && <span className="items-center flex text-xs text-primary font-semibold">Insufficient funds. <br />The amount entered is greater than your balance ({selectedAsset.max} {selectedAsset.symbol})</span>}
-                                        {loadingFee && <span className="text-xs flex items-center gap-2">Estimated fee: <Spinner /></span>}
-                                        {!loadingFee && fee !== undefined && <span className="text-xs">Estimated fee: {fee} sat ({new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format((fee / 100_000_000) * price)})</span>}
-                                    </div>
-                                </div>
-                            </div>
-                        </TabsContent>
-                    </Tabs>
+                            {amount > selectedAsset.max && <span className="items-center flex text-xs text-primary font-semibold">Insufficient funds. <br />The amount entered is greater than your balance ({selectedAsset.max} {selectedAsset.symbol})</span>}
+                            {loadingFee && <span className="text-xs flex items-center gap-2">Estimated fee: <Spinner /></span>}
+                            {!loadingFee && fee !== undefined && <span className="text-xs">Estimated fee: {fee} sat ({new Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format((fee / 100_000_000) * price)})</span>}
+                        </div>
+                    }
                 </Card>
                 <DialogFooter>
                     <DialogClose asChild>
                         <Button className="bg-white" variant='outline'>Cancel</Button>
                     </DialogClose>
-                    {amount > 0 && amount <= selectedAsset.max && recipient && <Button onClick={handleSend} disabled={loading}>{loading ?  <Spinner /> : 'Send' }</Button>}
+                    {selectedAsset && amount > 0 && amount <= selectedAsset.max && recipient && <Button onClick={handleSend} disabled={loading}>{loading ? <Spinner /> : 'Send'}</Button>}
                 </DialogFooter>
             </DialogContent>
         </Dialog>

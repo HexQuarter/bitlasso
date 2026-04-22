@@ -92,10 +92,11 @@ interface _SparkWallet {
     claimDeposit(txId: string, vout: number): Promise<void>
     fetchPrices(): Promise<PriceRate[]>
     on<K extends keyof BreezEvent>(eventName: K, callback: BreezEvent[K]): void
-    validAddress(string: string, method?: 'spark' | 'lightning' | 'bitcoin'): Promise<boolean>
     signMessage(message: string): Promise<{ signature: string, pubkey: string }>
     disconnect(): Promise<void>
     ecdhNostrKey(pubKey: string): Uint8Array | undefined
+getIdentityPubkey(): Promise<string>
+    parseRecipient(address: string): Promise<'spark' | 'bitcoin' | 'lightning'>
 }
 
 interface NostrWallet {
@@ -584,6 +585,23 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
         }
     }
 
+    async parseRecipient(address: string): Promise<'spark' | 'bitcoin' | 'lightning'> {
+        const parsed = await this.sdk.parse(address)
+        switch (parsed.type) {
+            case 'sparkAddress':
+                return 'spark'
+            case 'bitcoinAddress':
+                return 'bitcoin'
+            case 'lightningAddress':
+            case 'bolt11Invoice':
+            case 'bolt12Invoice':
+            case 'lnurlPay':
+                return 'lightning'
+            default:
+                throw new Error(`Unknown recipient type: ${parsed.type}`)
+        }
+    }
+
     private async prepareLightningPayment(invoice: string, amountSats?: number): Promise<PrepareSendPaymentResponse | PrepareLnurlPayResponse> {
         const parsedInvoice = await this.sdk.parse(invoice)
         switch (parsedInvoice.type) {
@@ -699,20 +717,6 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
 
     async claimDeposit(txId: string, vout: number): Promise<void> {
         await this.sdk.claimDeposit({ txid: txId, vout })
-    }
-
-    async validAddress(address: string, method?: 'spark' | 'lightning' | 'bitcoin'): Promise<boolean> {
-        const parsed = await this.sdk.parse(address)
-        switch (method) {
-            case 'bitcoin':
-                return parsed.type == 'bitcoinAddress'
-            case 'spark':
-                return parsed.type == 'sparkAddress'
-            case 'lightning':
-                return parsed.type == 'bolt11Invoice' || parsed.type == 'bolt12Invoice' || parsed.type == 'lnurlPay' || parsed.type == 'lightningAddress'
-            default:
-                return false
-        }
     }
 
     getNostrPublicKey(): string {
