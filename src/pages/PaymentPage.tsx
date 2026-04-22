@@ -168,7 +168,7 @@ const PendingPaymentState: React.FC<{
     const [sendError, setSendError] = useState<undefined | string>(undefined)
     const [paymentMade, setPaymentMade] = useState(false)
     const [selectedPaymentTab, setSelectedPaymentTab] = useState("spark")
-    const [paymentAddress, setPaymentAddress] = useState<undefined | string>(paymentRequest.sparkAddress)
+    const [paymentAddress, setPaymentAddress] = useState<undefined | string>(undefined)
     const [tokenMetadata, setTokenMetadata] = useState<{ ticker: string } | undefined>(undefined)
 
     useEffect(() => {
@@ -357,24 +357,24 @@ const PendingPaymentState: React.FC<{
                             <p className="text-sm text-muted-foreground">Choose how you’d like to pay</p>
                         </div>
                         <div className="flex flex-col gap-10">
-                            <Tabs defaultValue="spark" className="gap-3" onValueChange={(e) => handleSelectPaymentChange(e as TabType)}>
+                            <Tabs className="gap-3" onValueChange={(e) => handleSelectPaymentChange(e as TabType)}>
                                 <TabsList className="p-0 border-0 rounded-none flex-col flex-row flex h-full bg-transparent gap-2 items-start">
-                                    <TabsTrigger value="spark" className="transition border-0 bg-white  text-sm data-[state=active]:text-white px-4 py-2 w-full data-[state=active]:bg-black data-[state=active]:border-primary/20 rounded-full shadow-sm h-10 flex items-center justify-center gap-2 text-black ">
+                                    {paymentRequest.sparkAddress != '' && <TabsTrigger value="spark" className="transition border-0 bg-white  text-sm data-[state=active]:text-white px-4 py-2 w-full data-[state=active]:bg-black data-[state=active]:border-primary/20 rounded-full shadow-sm h-10 flex items-center justify-center gap-2 text-black ">
                                         <svg width="20" height="20" viewBox="0 0 68 65" fill="none" xmlns="http://www.w3.org/2000/svg">
                                             <path fill-rule="evenodd" clip-rule="evenodd" d="M39.7159 25.248L40.8727 0.570312H26.4219L27.5787 25.2483L4.46555 16.5221L0 30.2656L23.8282 36.7915L8.38717 56.0763L20.0781 64.5703L33.6483 43.9245L47.2179 64.5695L58.9089 56.0755L43.4679 36.7909L67.2937 30.2657L62.8281 16.5221L39.7159 25.248ZM33.6472 33.6013L33.647 33.6007H33.6466L33.6462 33.6021L33.6472 33.6013Z" fill="currentColor" />
                                         </svg>
                                         Spark
-                                    </TabsTrigger>
-                                    <TabsTrigger value="ln" className="transition order-0 bg-white text-sm data-[state=active]:text-white px-4 py-2 w-full data-[state=active]:bg-black data-[state=active]:border-primary/20 rounded-full shadow-sm h-10 flex items-center justify-center gap-2 text-amber-500 ">
+                                    </TabsTrigger>}
+                                    {paymentRequest.lightningInvoice != '' && <TabsTrigger value="ln" className="transition order-0 bg-white text-sm data-[state=active]:text-white px-4 py-2 w-full data-[state=active]:bg-black data-[state=active]:border-primary/20 rounded-full shadow-sm h-10 flex items-center justify-center gap-2 text-amber-500 ">
                                         <BiSolidZap className="h-6 w-6" />
                                         Lightning
-                                    </TabsTrigger>
-                                    <TabsTrigger value="btc" className="transition border-0 bg-white text-sm data-[state=active]:text-white px-4 py-2 w-full data-[state=active]:bg-black data-[state=active]:border-primary/20 rounded-full shadow-sm h-10 flex items-center justify-center gap-2 text-primary">
+                                    </TabsTrigger>}
+                                    {paymentRequest.btcAddress != '' && <TabsTrigger value="btc" className="transition border-0 bg-white text-sm data-[state=active]:text-white px-4 py-2 w-full data-[state=active]:bg-black data-[state=active]:border-primary/20 rounded-full shadow-sm h-10 flex items-center justify-center gap-2 text-primary">
                                         <FaBitcoin className="h-6 w-6" />
                                         Bitcoin
-                                    </TabsTrigger>
+                                    </TabsTrigger>}
                                 </TabsList>
-                                <TabsContent value="spark" className="p-5 bg-white backdrop-blur-sm rounded-xl ">
+                                {paymentRequest.sparkAddress != ''&& <TabsContent value="spark" className="p-5 bg-white backdrop-blur-sm rounded-xl ">
                                     <div className="flex flex-col gap-2 ">
                                         <div className="text-sm flex flex-col gap-5">
                                             <div className="flex md:flex-row flex-col justify-between gap-1">
@@ -386,7 +386,7 @@ const PendingPaymentState: React.FC<{
                                                 </div>
                                             </div>
 
-                                            <p className="text-muted-foreground text-xs">Send exactly <span className="font-semibold">{Math.floor(btcAmount * 100_000_000)} sats</span> to complete this payment.</p>
+                                            <p className="text-muted-foreground text-xs">Send exactly <span className="font-semibold">{new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.floor(btcAmount * 100_000_000))} sats</span> to complete this payment.</p>
 
                                             <div className="flex flex-col gap-5">
                                                 <div className="p-8 flex justify-center">
@@ -430,8 +430,8 @@ const PendingPaymentState: React.FC<{
                                             </div>
                                         </div>
                                     </div>
-                                </TabsContent>
-                                <TabsContent value="ln" className="p-5 bg-white backdrop-blur-sm rounded-xl ">
+                                </TabsContent>}
+                                {paymentRequest.lightningInvoice != ''&& <TabsContent value="ln" className="p-5 bg-white backdrop-blur-sm rounded-xl ">
                                     <div className="flex flex-col gap-2 ">
                                         <div className="text-sm flex flex-col gap-5">
                                             <div className="flex md:flex-row flex-col justify-between gap-1">
@@ -443,7 +443,7 @@ const PendingPaymentState: React.FC<{
                                                 </div>
                                             </div>
 
-                                            <p className="text-muted-foreground text-xs">Send exactly <span className="font-semibold">{Math.floor(btcAmount * 100_000_000)} sats</span> to complete this payment.</p>
+                                            <p className="text-muted-foreground text-xs">Send exactly <span className="font-semibold">{new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.floor(btcAmount * 100_000_000))} sats</span> to complete this payment.</p>
 
                                             <div className="flex flex-col gap-5">
                                                 <div className="p-8 flex justify-center">
@@ -464,8 +464,8 @@ const PendingPaymentState: React.FC<{
                                         </div>
                                     </div>
 
-                                </TabsContent>
-                                <TabsContent value="btc" className="p-5 bg-white backdrop-blur-sm rounded-xl ">
+                                </TabsContent>}
+                                {paymentRequest.sparkAddress != ''&& <TabsContent value="btc" className="p-5 bg-white backdrop-blur-sm rounded-xl ">
                                     <div className="flex flex-col gap-2 ">
                                         <div className="text-sm flex flex-col gap-5">
                                             <div className="flex md:flex-row flex-col justify-between gap-1">
@@ -477,7 +477,7 @@ const PendingPaymentState: React.FC<{
                                                 </div>
                                             </div>
 
-                                            <p className="text-muted-foreground text-xs">Send exactly <span className="font-semibold">{Math.floor(btcAmount * 100_000_000)} sats</span> to complete this payment.</p>
+                                            <p className="text-muted-foreground text-xs">Send exactly <span className="font-semibold">{new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.floor(btcAmount * 100_000_000))} sats</span> to complete this payment.</p>
 
                                             <div className="flex flex-col gap-5">
                                                 <div className="p-8 flex justify-center">
@@ -515,7 +515,7 @@ const PendingPaymentState: React.FC<{
                                             </div>
                                         </div>
                                     </div>
-                                </TabsContent>
+                                </TabsContent>}
                             </Tabs>
                         </div>
                     </div >
