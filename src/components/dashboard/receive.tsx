@@ -43,7 +43,7 @@ export const Receive: React.FC<Props> = ({ addresses }) => {
             <DialogContent className="sm:max-w-[500px] bg-slate-50 flex flex-col gap-10">
                 <DialogHeader>
                     <DialogTitle className="font-serif text-3xl font-light">Receive funds</DialogTitle>
-                    <DialogDescription>My addresses</DialogDescription>
+                    <DialogDescription>You can send sats to any of those addresses</DialogDescription>
                 </DialogHeader>
                 {/* <TabsReceive btcAddress={addresses.btc} sparkAddress={addresses.spark} lnAddress={addresses.ln} /> */}
                 <div className="flex flex-col gap-2">
