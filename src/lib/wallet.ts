@@ -1,9 +1,15 @@
-import { defaultConfig, SdkBuilder, type BreezSdk, type DepositInfo, type Payment, type PrepareLnurlPayResponse, type PrepareSendPaymentResponse, type SdkEvent, type Seed } from "@breeztech/breez-sdk-spark/web";
+import { defaultConfig, SdkBuilder, type BreezSdk, type DepositInfo, type Payment as BreezPayment, type PrepareLnurlPayResponse, type PrepareSendPaymentResponse, type SdkEvent, type Seed } from "@breeztech/breez-sdk-spark/web";
+export type { BreezPayment };
 import { SparkWallet } from "@buildonspark/spark-sdk";
 import { getNostrKeyPair, type NostrKeyPair } from "./nostr";
 import { uint8ArrayToNum } from "./utils";
 import { bytesToHex, hexToBytes } from "nostr-tools/utils";
 import { finalizeEvent, nip44, type EventTemplate, type VerifiedEvent } from "nostr-tools";
+import * as bitcoin from "bitcoinjs-lib";
+import * as ecc from '@bitcoinerlab/secp256k1';
+
+bitcoin.initEccLib(ecc);
+
 export const BURN_PUBLIC_KEY =
     "020202020202020202020202020202020202020202020202020202020202020202";
 
@@ -58,6 +64,22 @@ export class TypedEventEmitter<Events extends EventMap> {
         return this;
     }
 
+    off<K extends keyof Events>(event: K, listener: Events[K]): this {
+        const listeners = this.events.get(event);
+        if (listeners) {
+            const index = listeners.indexOf(listener);
+            if (index !== -1) {
+                listeners.splice(index, 1);
+                if (listeners.length === 0) {
+                    this.events.delete(event);
+                } else {
+                    this.events.set(event, listeners);
+                }
+            }
+        }
+        return this;
+    }
+
     emit<K extends keyof Events>(event: K, ...args: Parameters<Events[K]>): boolean {
         const listeners = this.events.get(event);
         if (listeners) {
@@ -86,17 +108,20 @@ interface _SparkWallet {
     getTransferFee(type: 'spark' | 'bitcoin' | 'token' | "lightning", address: string, amountSats?: number, tokenIdentifier?: string): Promise<number>;
     createSparkAddress(id: number): Promise<string>
     createBitcoinAddress(id: number): Promise<string>
-    withAccountNumber(nonce: number): Promise<Wallet>
     listPayments(): Promise<SparkPayment[]>
     listUnclaimDeposits(): Promise<Deposit[]>
     claimDeposit(txId: string, vout: number): Promise<void>
     fetchPrices(): Promise<PriceRate[]>
     on<K extends keyof BreezEvent>(eventName: K, callback: BreezEvent[K]): void
+    off<K extends keyof BreezEvent>(eventName: K, callback: BreezEvent[K]): void
     signMessage(message: string): Promise<{ signature: string, pubkey: string }>
     disconnect(): Promise<void>
     ecdhNostrKey(pubKey: string): Uint8Array | undefined
-getIdentityPubkey(): Promise<string>
+    getIdentityPubkey(): Promise<string>
     parseRecipient(address: string): Promise<'spark' | 'bitcoin' | 'lightning'>
+    paySparkInvoice(invoice: string): Promise<{ paymentId: string, preimage?: string }>
+    getPaymentInfo(paymentId: string): Promise<BreezPayment | undefined>
+    createSparkInvoice(): Promise<string>
 }
 
 interface NostrWallet {
@@ -115,45 +140,30 @@ interface BreezEvent {
     synced: () => void;
     unclaimedDeposits: (unclaimedDeposits: DepositInfo[]) => void;
     claimedDeposits: (claimedDeposits: DepositInfo[]) => void;
-    paymentReceived: (payment: Payment) => void
-    paymentSent: (payment: Payment) => void
-    paymentPending: (payment: Payment) => void
-    paymentFailed: (payment: Payment) => void
+    paymentReceived: (payment: BreezPayment) => void
+    paymentSent: (payment: BreezPayment) => void
+    paymentPending: (payment: BreezPayment) => void
+    paymentFailed: (payment: BreezPayment) => void
 }
 
 export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements Wallet {
     private sdk: BreezSdk;
     private sparkWallet: SparkWallet;
     private builderNewFn: () => Promise<SdkBuilder>;
-    private builderSparkWalletFn: (accountNumber: number) => Promise<SparkWallet>
     private nostrKeypair: NostrKeyPair | undefined;
 
-    constructor(builderNewFn: () => Promise<SdkBuilder>, builderSparkWalletFn: (accountNumber: number) => Promise<SparkWallet>, sdk: BreezSdk, sparkWallet: SparkWallet) {
+    constructor(builderNewFn: () => Promise<SdkBuilder>, sdk: BreezSdk, sparkWallet: SparkWallet) {
         super()
         this.builderNewFn = builderNewFn;
-        this.builderSparkWalletFn = builderSparkWalletFn
         this.sdk = sdk;
         this.sparkWallet = sparkWallet
-    }
-
-    async withAccountNumber(nonce: number): Promise<BreezSparkWallet> {
-        let builder = await this.builderNewFn()
-        builder = builder.withKeySet({
-            keySetType: 'default',
-            useAddressIndex: false,
-            accountNumber: nonce
-        })
-        const sdk = await builder.build()
-        const sparkWallet = await this.builderSparkWalletFn(nonce)
-
-        return new BreezSparkWallet(this.builderNewFn, this.builderSparkWalletFn, sdk, sparkWallet)
     }
 
     static async initialize(mnemonic: string, apiKey: string): Promise<BreezSparkWallet> {
         const seed: Seed = { type: 'mnemonic', mnemonic: mnemonic, passphrase: undefined }
         const config = defaultConfig('mainnet')
         config.apiKey = apiKey
-        config.maxDepositClaimFee = { type: 'rate', satPerVbyte: 10 }
+        config.maxDepositClaimFee = { type: 'networkRecommended', leewaySatPerVbyte: 1 }
 
         let builder = SdkBuilder.new(config, seed)
         builder = await builder.withDefaultStorage('./bitlasso')
@@ -173,12 +183,11 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
         }
 
         const sparkWallet = await buildSparkWalletFn(1)
-
         const instance = new BreezSparkWallet(async () => {
             let builder = SdkBuilder.new(config, seed)
             builder = await builder.withDefaultStorage('./bitlasso')
             return builder
-        }, buildSparkWalletFn, sdk, sparkWallet)
+        }, sdk, sparkWallet)
 
         class JsEventListener {
             private deliveredEvents = new Set<string>(); // track delivered events
@@ -248,15 +257,20 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
 
         try {
             const unclaimedDeposits = await sdk.listUnclaimedDeposits({})
-            if (unclaimedDeposits.deposits.length > 0) {
-                const promises = unclaimedDeposits.deposits.map(d => {
-                    return sdk.claimDeposit({ txid: d.txid, vout: d.vout })
-                })
-                await Promise.all(promises)
-            }
+            await Promise.all(unclaimedDeposits.deposits.map(async (d) => {
+                try {
+                    await sdk.claimDeposit({ txid: d.txid, vout: d.vout })
+                } catch (e: any) {
+                    if (e.message?.includes('below dust limit')) {
+                        console.info(`Deposit ${d.txid}:${d.vout} is below dust limit, skipping claim for now.`)
+                    } else {
+                        console.error(`Failed to claim deposit ${d.txid}:${d.vout}`, e)
+                    }
+                }
+            }))
         }
         catch (e) {
-            console.error('cannot claim deposit')
+            console.error('failed to process unclaimed deposits', e)
         }
 
         instance.nostrKeypair = getNostrKeyPair(mnemonic)
@@ -308,7 +322,7 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
     }
 
     async getLightningAddress(): Promise<string> {
-        const nostrPubKey = await this.getNostrPublicKey()
+        const nostrPubKey = this.getNostrPublicKey()
         const isAvailable = await this.sdk.checkLightningAddressAvailable({
             username: nostrPubKey
         })
@@ -317,11 +331,24 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
             return info.lightningAddress
         }
         else {
-            const info = await this.sdk.getLightningAddress()
+            let info = await this.sdk.getLightningAddress()
             if (info) {
                 return info.lightningAddress
             }
-            throw new Error('Cannot retrieve lightning address')
+
+            // Recover from previous versions
+            let builder = await this.builderNewFn()
+            builder = builder.withKeySet({
+                keySetType: 'nativeSegwit',
+                useAddressIndex: true,
+                accountNumber: 1
+            })
+            const sdk = await builder.build()
+            await sdk.deleteLightningAddress()
+            await new Promise(resolve => setTimeout(resolve, 1000))
+
+            info = await this.sdk.registerLightningAddress({ username: nostrPubKey })
+            return info.lightningAddress
         }
     }
 
@@ -519,8 +546,9 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
             })
             return { paymentId: res.payment.id };
         } else {
+            const paymentResponse = response as PrepareSendPaymentResponse
             const res = await this.sdk.sendPayment({
-                prepareResponse: response as PrepareSendPaymentResponse
+                prepareResponse: paymentResponse
             })
             return { paymentId: res.payment.id };
         }
@@ -751,4 +779,33 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
         await this.sdk.disconnect()
     }
 
+    async getIdentityPubkey(): Promise<string> {
+        return this.sparkWallet.getIdentityPublicKey()
+    }
+
+    async paySparkInvoice(invoice: string): Promise<{ paymentId: string, preimage?: string }> {
+        const prepareResponse = await this.sdk.prepareSendPayment({
+            paymentRequest: invoice
+        })
+        if (prepareResponse.paymentMethod.type != 'sparkInvoice') {
+            throw new Error('Expecting Spark invoice')
+        }
+
+        const sendResponse = await this.sdk.sendPayment({
+            prepareResponse,
+        })
+        return { paymentId: sendResponse.payment.id }
+    }
+
+    async getPaymentInfo(paymentId: string): Promise<BreezPayment | undefined> {
+        const response = await this.sdk.getPayment({ paymentId })
+        return response.payment
+    }
+
+    async createSparkInvoice(): Promise<string> {
+        const invoice = await this.sdk.receivePayment({
+            paymentMethod: { type: 'sparkInvoice', amount: '0' },
+        })
+        return invoice.paymentRequest
+    }
 }

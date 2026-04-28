@@ -4,7 +4,7 @@ import { usePostHog } from "@posthog/react"
 import { useEffect, useState } from "react"
 import { AddressPurpose, request, RpcErrorCode } from "sats-connect"
 import { subscribeRedeem, type PaymentRequest } from "@/lib/nostr"
-import { ExternalLink, Gift } from "lucide-react"
+import { CheckCircle, Copy, ExternalLink, Gift } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs"
 
 import XVerseWhiteLogo from '../../../public/xverse_white_logo.png'
@@ -30,6 +30,7 @@ export const LoyaltySection: React.FC<Props> = ({ settings, paymentRequest, hand
     const [redeemLoading, setRedeemLoading] = useState(false)
     const [redeeemError, setRedeemError] = useState<undefined | string>(undefined)
     const [wallet, setWallet] = useState<string | undefined>(undefined)
+    const [tokenMetadata, setTokenMetadata] = useState<undefined | { name: string, ticker: string, decimals: number }>(undefined)
 
     const posthog = usePostHog()
 
@@ -46,7 +47,7 @@ export const LoyaltySection: React.FC<Props> = ({ settings, paymentRequest, hand
         }
 
         setWallet(address);
-        void(() => posthog?.capture('wallet_connected_for_discount', { payment_id: paymentRequest.id }))()
+        void (() => posthog?.capture('wallet_connected_for_discount', { payment_id: paymentRequest.id }))()
 
         setLoadingTokens(true)
 
@@ -78,7 +79,7 @@ export const LoyaltySection: React.FC<Props> = ({ settings, paymentRequest, hand
         setRedeemError(undefined)
 
         const response = await request("spark_transferToken", {
-            receiverSparkAddress: paymentRequest.sparkAddress,
+            receiverSparkAddress: paymentRequest.redeemAddress,
             tokenIdentifier: paymentRequest.tokenId,
             tokenAmount: redeemedTokens
         });
@@ -90,17 +91,35 @@ export const LoyaltySection: React.FC<Props> = ({ settings, paymentRequest, hand
             setRedeemError(response.error.message)
             return
         }
-        void(() => posthog?.capture('tokens_redeemed', {
+        void (() => posthog?.capture('tokens_redeemed', {
             payment_id: paymentRequest.id,
             tokens_redeemed: redeemedTokens,
         }))()
     }
 
+    const [copied, setCopied] = useState(false)
+
+    const copy = (address: string) => {
+        navigator.clipboard.writeText(address)
+        const toastId = toast.info('Address copied into the clipboard')
+        setTimeout(() => {
+            toast.dismiss(toastId)
+        }, 2000)
+        setCopied(true)
+    }
+
     useEffect(() => {
+
+        fetch(`https://api.sparkscan.io/v1/tokens/${paymentRequest.tokenId}`)
+            .then(res => res.json())
+            .then(data => {
+                const { metadata } = data
+                setTokenMetadata(metadata)
+            })
+
         if (!paymentRequest.redeemAmount) {
             subscribeRedeem(settings, paymentRequest.id, (redeemAmount: number, redeemTransaction: string) => {
                 handleRedeem(redeemTransaction, redeemAmount)
-                toast.success('Token have been redeemed. You can proceed to the payment with the discount applied')
                 setRedeemLoading(false)
             })
         }
@@ -109,7 +128,7 @@ export const LoyaltySection: React.FC<Props> = ({ settings, paymentRequest, hand
     return (
         <div className="">
             <div className="mt-1">
-                <div className="text-slate-800 text-medium pb-2 flex items-center gap-2 text-sm">Redeem loyalty tokens to get discount.</div>
+                <div className="text-slate-800 text-medium pb-2 flex items-center gap-2 text-sm">Redeem {tokenMetadata?.name} token ({tokenMetadata?.ticker}) to get discount.</div>
             </div>
             <Tabs defaultValue="browser" className="mt-5">
                 <TabsList className="p-0 border-0 flex-col lg:flex-row flex h-full bg-transparent gap-3">
@@ -143,12 +162,12 @@ export const LoyaltySection: React.FC<Props> = ({ settings, paymentRequest, hand
                                         <>
                                             <div className="rounded-lg flex flex-col">
                                                 <span className="text-sm text-muted-foreground">Your token balance</span>
-                                                <span className="text-xl">{tokenBalance?.amount} {tokenBalance?.name}</span>
+                                                <span className="text-xl">{tokenBalance?.amount} {tokenMetadata?.ticker || tokenBalance?.name}</span>
                                             </div>
                                             <div className="flex flex-col gap-2">
                                                 <div className="flex justify-between text-xs">
                                                     <span>Tokens to redeem</span>
-                                                    <span>{redeemedTokens} {tokenBalance?.name}</span>
+                                                    <span>{redeemedTokens} {tokenMetadata?.ticker || tokenBalance?.name}</span>
                                                 </div>
                                                 <Slider step={1} max={maxRedeemableToken} onValueChange={(val) => setRedeemedTokens(val[0])} />
                                                 <div className="flex justify-between text-xs text-muted-foreground">
@@ -177,9 +196,51 @@ export const LoyaltySection: React.FC<Props> = ({ settings, paymentRequest, hand
                     }
                 </TabsContent>
                 <TabsContent value="external" className="flex flex-col gap-5 bg-gray-50 p-5 rounded-sm">
-                    <p className="text-sm text-muted-foreground">Scan this QR code with any Spark-compatible wallet to apply your loyalty discount before paying.</p>
-                    <div className="flex justify-center">
-                        <QRCode value={paymentRequest.sparkAddress} size={150} />
+                    <p className="text-sm text-muted-foreground">Redeem with any Spark-compatible wallet to apply your loyalty discount.</p>
+                    <div className="flex flex-col justify-center">
+                        <div className="flex justify-center">
+                            <div className="w-48 h-48 bg-white rounded-xl flex items-center justify-center text-neutral-400 text-xs text-center p-4">
+                                <QRCode value={paymentRequest.redeemAddress} />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2 my-2">
+                            <div className="text-xs text-neutral-500 text-center">Scan or copy to pay the invoice</div>
+                            <div className="flex items-center justify-between bg-neutral-50 border rounded-lg px-3 py-2">
+                                <div className="text-xs font-mono text-neutral-700 truncate">
+                                    {paymentRequest.redeemAddress}
+                                </div>
+                                <button
+                                    onClick={() => copy(paymentRequest.redeemAddress)}
+                                    className="text-neutral-500 hover:text-black"
+                                >
+                                    {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
+                                </button>
+                            </div>
+                            {copied && (
+                                <div className="text-xs text-green-600">Copied to clipboard</div>
+                            )}
+                        </div>
+
+
+                        {/* <QRCode value={paymentRequest.redeemInvoice} size={150} />
+                        <div className="space-y-2">
+                            <div className="text-xs text-neutral-500">Scan or copy to pay the invoice</div>
+                            <div className="flex items-center justify-between bg-neutral-50 border rounded-lg px-3 py-2">
+                                <div className="text-xs font-mono text-neutral-700 truncate">
+                                    {paymentRequest.redeemInvoice}
+                                </div>
+                                <button
+                                    onClick={() => copy(paymentRequest.lightningInvoice)}
+                                    className="text-neutral-500 hover:text-black"
+                                >
+                                    {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
+                                </button>
+                            </div>
+                            {copied && (
+                                <div className="text-xs text-green-600">Copied to clipboard</div>
+                            )}
+                        </div> */}
                     </div>
                     <div className="flex flex-col gap-4 text-xs">
                         <div className="flex gap-2 items-center">
@@ -188,7 +249,8 @@ export const LoyaltySection: React.FC<Props> = ({ settings, paymentRequest, hand
                         </div>
                         <div className="flex gap-2 items-center">
                             <span className="bg-primary/5 border border-primary/20 text-primary rounded-full p-4 h-5 w-5 text-center items-center flex justify-center">2</span>
-                            <span>Scan this QR code and send {maxRedeemableToken > 1 ? `up to ${maxRedeemableToken} tokens` : '1 token'}.</span>
+                            <span>Scan this QR code and send {maxRedeemableToken > 1 ? `up to ${maxRedeemableToken} ${tokenMetadata?.ticker || tokenBalance?.name || 'token'}` : `1 ${tokenMetadata?.ticker || tokenBalance?.name || 'token'}`}.</span>
+
                         </div>
                         <div className="flex gap-2 items-center">
                             <span className="bg-primary/5 border border-primary/20 text-primary rounded-full p-4 h-5 w-5 text-center items-center flex justify-center">3</span>

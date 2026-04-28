@@ -27,7 +27,7 @@ const steps = [
   {
     icon: Zap,
     title: "Payment settles instantly",
-    description: "Your client pays over Bitcoin, Lightning or Spark. Settlement is final, irreversible, and confirmed in seconds.",
+    description: "Your client pays over Lightning network for an instant payment rail and secure settlement.",
     // img: PaymentCertificate,
     video: PayVideo
   },

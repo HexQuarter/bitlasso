@@ -12,11 +12,13 @@ import {
 import { Input } from "@/components/ui/input"
 import { Coins, Plus } from "lucide-react"
 import type React from "react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActivePayment } from "./activate-payment"
 import type { Settings } from "@/lib/api"
+import { fetchOrganizationSettings } from "@/lib/nostr"
+import type { Wallet } from "@/lib/wallet"
 
 export type PaymentRequestData = {
     description?: string
@@ -27,14 +29,16 @@ export type PaymentRequestData = {
 }
 
 type Props = {
+    wallet: Wallet
     settings: Settings
     onSubmit: (data: PaymentRequestData) => Promise<void>
     onPurchaseCredits: (amount: number) => Promise<void>
     price: number
     creditBalance: number
+    satsBalance: number
 }
 
-export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price, settings, creditBalance, onPurchaseCredits }) => {
+export const PaymentRequestForm: React.FC<Props> = ({ wallet, onSubmit, price, settings, creditBalance, satsBalance, onPurchaseCredits }) => {
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
 
@@ -42,6 +46,7 @@ export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price, settings,
     const [description, setDescription] = useState("")
     const [ready, setReady] = useState(false)
     const [discountRate, setDiscountRate] = useState(10)
+    const [vatRate, setVatRate] = useState(0)
 
     const handleChangeAmount = (val: string) => {
         const amount = parseFloat(val)
@@ -89,6 +94,12 @@ export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price, settings,
         setOpen(open)
     }
 
+    useEffect(() => {
+        fetchOrganizationSettings(wallet).then((orgSettings) => {
+            setVatRate(orgSettings?.vat || 0)
+        })
+    }, [wallet])
+
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild onClick={() => setOpen(true)} >
@@ -108,10 +119,11 @@ export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price, settings,
                             <CardDescription className=" text-muted-foreground">Enter the amount in USD for the payment request.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Input required id="amount" type='number' inputMode="numeric"  min='0' placeholder='0' onChange={(e) => handleChangeAmount(e.target.value)} value={amount} />
+                            <Input required id="amount" type='number' inputMode="numeric" min='0' placeholder='0' onChange={(e) => handleChangeAmount(e.target.value)} value={amount} />
                         </CardContent>
                         <CardFooter className="flex flex-col gap-5 items-start">
-                            <p className="text-xs text-gray-400">A BTC payment equivalent of {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)} will be present and refreshed on the checkout page matching the most recent rate.</p>
+                            <p className="text-xs text-gray-400">Total amount (with VAT): {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount * (1 + vatRate))}</p>
+                            <p className="text-xs text-gray-400">A BTC payment equivalent will be present and refreshed on the checkout page matching the most recent rate.</p>
                         </CardFooter>
                     </Card>
                     <Card>
@@ -134,7 +146,7 @@ export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price, settings,
                         </CardContent>
                     </Card>
                     {ready && <DialogFooter>
-                        <ActivePayment settings={settings} loading={loading} price={price} onSubmit={handleActivatePayment} creditBalance={creditBalance} onPurchaseCredits={onPurchaseCredits} />
+                        <ActivePayment settings={settings} loading={loading} price={price} onSubmit={handleActivatePayment} creditBalance={creditBalance} onPurchaseCredits={onPurchaseCredits} satsBalance={satsBalance} />
                     </DialogFooter>}
                     <DialogClose asChild><Button variant="outline" className="w-full bg-white" onClick={() => setLoading(false)}>Cancel</Button></DialogClose>
                 </div>

@@ -10,7 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { CiMenuKebab } from "react-icons/ci";
 
-export type Payment = {
+export type PaymentRequestItem = {
     createdAt: Date
     amount: number
     description?: string
@@ -21,9 +21,10 @@ export type Payment = {
     id: string
     nonce: number
     settlementMode?: string
+    sharingKey?: string
 }
 
-const getColumns = (onDeriveReceipt: (data: IssueReceiptData) => Promise<void>, paymentRequests: Payment[], receipts: Receipt[]) => {
+const getColumns = (onDeriveReceipt: (data: IssueReceiptData) => Promise<void>, paymentRequests: PaymentRequestItem[], receipts: Receipt[]) => {
     return [
          {
             accessorKey: "actions",
@@ -56,6 +57,9 @@ const getColumns = (onDeriveReceipt: (data: IssueReceiptData) => Promise<void>, 
 
                 const actionToDo = canDeriveReceipts
 
+                const paymentPageLink = row.original.sharingKey ? `#/payment/${row.original.id}?key=${row.original.sharingKey}` : `#/payment/${row.original.id}`
+                const certPageLink = row.original.sharingKey ? `#/payment/${row.original.id}/certificate?key=${row.original.sharingKey}` : `#/payment/${row.original.id}/certificate`
+
                 return (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -74,12 +78,12 @@ const getColumns = (onDeriveReceipt: (data: IssueReceiptData) => Promise<void>, 
                         <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            {!row.original.settleTx && <DropdownMenuItem onClick={() => window.open(`#/payment/${row.original.id}`, '_blank')}>Open payment's page <ExternalLink /></DropdownMenuItem>}
+                            {!row.original.settleTx && <DropdownMenuItem onClick={() => window.open(paymentPageLink, '_blank')}>Open payment's page <ExternalLink /></DropdownMenuItem>}
                             {canDeriveReceipts && <IssueReceiptForm buttonVariant='none' onSubmit={onDeriveReceipt} buttonText="Derive receipt" amount={row.original.amount} description={row.original.description} paymentId={row.original.id} paymentRequests={paymentRequests} />}
                             {settleTxUrl && <DropdownMenuItem onClick={() => window.open(settleTxUrl, '_blank')}>Open settlement transaction <ExternalLink /></DropdownMenuItem>}
                             {redeemTxUrl && <DropdownMenuItem onClick={() => window.open(redeemTxUrl, '_blank')}>Open redeem transaction <ExternalLink /></DropdownMenuItem>}
                             {derivedReceipt && <DropdownMenuItem onClick={() => window.open(deriveReceiptTx, '_blank')}>Open receipt mint transaction <ExternalLink /></DropdownMenuItem>}
-                            {row.original.settleTx && <DropdownMenuItem onClick={() => window.open(`#/payment/${row.original.id}/certificate`, '_blank')}>Open payment certificate<ExternalLink /></DropdownMenuItem>}
+                            {row.original.settleTx && <DropdownMenuItem onClick={() => window.open(certPageLink, '_blank')}>Open payment certificate<ExternalLink /></DropdownMenuItem>}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 )
@@ -176,13 +180,13 @@ const getColumns = (onDeriveReceipt: (data: IssueReceiptData) => Promise<void>, 
         },
        
 
-    ] as ColumnDef<Payment>[]
+    ] as ColumnDef<PaymentRequestItem>[]
 }
 
 type Props = {
-    data: Payment[]
+    data: PaymentRequestItem[]
     onDeriveReceipt: (data: IssueReceiptData) => Promise<void>,
-    paymentRequests: Payment[],
+    paymentRequests: PaymentRequestItem[],
     receipts: Receipt[]
 }
 

@@ -3,8 +3,7 @@ import { shortenAddress } from "@/lib/utils"
 
 import { useEffect, useMemo, useState } from "react"
 
-import { ExternalLink, QrCode, Timer } from "lucide-react"
-import { TbTransactionBitcoin } from "react-icons/tb";
+import { ExternalLink } from "lucide-react"
 
 export const PaymentCertificate: React.FC<{ paymentRequest: PaymentRequest, btcAmountDate?: Date }> = ({ paymentRequest, btcAmountDate }) => {
     const txUrl = useMemo(() => {
@@ -37,32 +36,25 @@ export const PaymentCertificate: React.FC<{ paymentRequest: PaymentRequest, btcA
     }, [paymentRequest])
 
     return (
-        <div className="flex flex-col gap-2">
-            <div className="text-sm flex flex-col gap-5">
-                <div className="flex justify-between gap-1">
-                    <p className="text-lg font-medium text-xl font-serif">Certificate</p>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                    <p className="text-muted-foreground/60 text-xs font-mono uppercase tracking-[0.2em] flex items-center gap-2">
-                        <Timer className="h-4 w-4" />
+        <div className="flex flex-col gap-2 items-center">
+            <div className="text-sm flex flex-col gap-5 items-center">
+                <div className="flex flex-col gap-2 items-center">
+                    <p className="text-sm text-neutral-500">
                         Date
                     </p>
-                    <p className="">{btcAmountDate?.toDateString()}</p>
+                    <p className="font-semibold">{btcAmountDate?.toDateString()}</p>
                 </div>
-                <div className="flex flex-col gap-2">
-                    <p className="text-muted-foreground/60 text-xs font-mono uppercase tracking-[0.2em] flex items-center gap-2">
-                        <QrCode className="h-4 w-4" />
+                <div className="flex flex-col gap-2 items-center">
+                    <p className="text-sm text-neutral-500">
                         Payment mode
                     </p>
-                    <p className="">{mode}</p>
+                    <p className="font-semibold">{mode}</p>
                 </div>
-                <div className="flex flex-col gap-2">
-                    <p className="text-muted-foreground/60 text-xs font-mono uppercase tracking-[0.2em] flex items-center gap-2">
-                        <TbTransactionBitcoin className="h-4 w-4" />
+                <div className="flex flex-col gap-2 items-center">
+                    <p className="text-sm text-neutral-500">
                         Transaction
                     </p>
-                    <a href={txUrl} target="_blank" className="flex items-center gap-2">
+                    <a href={txUrl} target="_blank" className="flex items-center gap-2 font-semibold">
                         {shortenAddress(paymentRequest.settleTx as string)}
                         <ExternalLink className="h-4" />
                     </a>

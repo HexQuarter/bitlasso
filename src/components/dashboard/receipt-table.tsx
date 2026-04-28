@@ -6,7 +6,7 @@ import { Copy, ExternalLink, MoreHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ReceiptMetadataForm, type ReceiptMetadataData } from "./receipt-metadata-form"
-import type { Payment } from "./payment-table"
+import type { PaymentRequestItem } from "./payment-table"
 import { toast } from "sonner"
 import { shortenAddress } from "@/lib/utils"
 
@@ -19,7 +19,7 @@ export type Receipt = {
     paymentId?: string
 }
 
-const getColumns = (openMetadataModalFn: (metadata: ReceiptMetadataData) => void, paymentRequests: Payment[]) => {
+const getColumns = (openMetadataModalFn: (metadata: ReceiptMetadataData) => void, paymentRequests: PaymentRequestItem[]) => {
     return [
         {
             accessorKey: "amount",
@@ -109,7 +109,7 @@ const getColumns = (openMetadataModalFn: (metadata: ReceiptMetadataData) => void
     ] as ColumnDef<Receipt>[]
 }
 
-export const ReceiptTable: React.FC<{ receipts: Receipt[], paymentRequests: Payment[], onMetadataChange: (modalData: ReceiptMetadataData) => Promise<void> }> = ({ receipts, paymentRequests, onMetadataChange }) => {
+export const ReceiptTable: React.FC<{ receipts: Receipt[], paymentRequests: PaymentRequestItem[], onMetadataChange: (modalData: ReceiptMetadataData) => Promise<void> }> = ({ receipts, paymentRequests, onMetadataChange }) => {
 
     const [openMetadataModal, setOpenMetadataModel] = useState(false)
     const [metadata, setMetadata] = useState<ReceiptMetadataData>({ transactionId: '', description: '', recipientAddress: undefined, paymentId: undefined })

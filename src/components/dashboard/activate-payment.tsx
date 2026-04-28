@@ -11,9 +11,9 @@ import { BTCAsset } from "./send"
 
 const included = [
     "Payment page generation",
-    "Multi payment support: Spark, Lightning, Bitcoin",
     "Client redemption flow",
-    "No custody of funds"
+    "End to end encrypted",
+    "Lightning oriented"
 ]
 
 const USD_FEE = 1
@@ -27,7 +27,8 @@ type Props = {
     settings: Settings
     loading: boolean
     price: number
-    creditBalance?: number
+    creditBalance?: number,
+    satsBalance: number,
     onSubmit(feeSats?: number, credits?: number): void
     onPurchaseCredits: (amount: number) => Promise<void>
 }
@@ -45,12 +46,11 @@ const purchaseBundle = async (settings: Settings, wallet: Wallet, price: number,
     const sats = usdToBtc(amount, price) * 100_000_000
     const paymentId = await send(settings, wallet, BTCAsset, sats, settings.address, 'spark')
     console.log(paymentId)
-    const walletAddress = await wallet.getSparkAddress()
-    const { transferId } = await purchaseCredits(paymentId, bundle.quantity, walletAddress)
+    const { transferId } = await purchaseCredits(bundle.id, wallet)
     console.log('Purchase tx id', transferId)
 };
 
-export const ActivePayment: React.FC<Props> = ({ settings, loading, price, onSubmit, onPurchaseCredits, creditBalance = 0 }) => {
+export const ActivePayment: React.FC<Props> = ({ settings, loading, price, onSubmit, onPurchaseCredits, satsBalance, creditBalance = 0 }) => {
     const { wallet } = useWallet()
     const singleFeeSats = useMemo(() => usdToBtc(USD_FEE, price) * 100_000_000, [price])
     const [view, setView] = useState("activate"); // "activate" | "buy"
@@ -127,10 +127,11 @@ export const ActivePayment: React.FC<Props> = ({ settings, loading, price, onSub
                     </div>
                 ))}
 
-                <div className="py-8 flex justify-center gap-2 px-5">
-                    <Button className="w" onClick={handleActivate} disabled={loading}>
+                <div className="py-8 flex justify-center gap-2 px-5 flex-col items-center">
+                    <Button className="w" onClick={handleActivate} disabled={loading || (satsBalance < usdToBtc(USD_FEE, price) * 100_000_000 && creditBalance == 0)}>
                         {loading ? <Spinner /> : `Activate for ${balance == 0 ? `~${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(USD_FEE)} (${usdToBtc(USD_FEE, price) * 100_000_000} sats)` : '1 credit'}`}
                     </Button>
+                    {(satsBalance < usdToBtc(USD_FEE, price) * 100_000_000 && creditBalance == 0) && <p className="text-sm text-foreground/80">Insufficient balance.</p>}
                 </div>
             </div>
 

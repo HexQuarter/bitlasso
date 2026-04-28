@@ -16,7 +16,7 @@ import { useEffect, useState, type FormEvent } from "react"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import type { Payment } from "./payment-table"
+import type { PaymentRequestItem } from "./payment-table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useWallet } from "@/hooks/use-wallet"
 
@@ -32,7 +32,7 @@ type Props = {
     amount?: number
     description?: string
     paymentId?: string,
-    paymentRequests: Payment[],
+    paymentRequests: PaymentRequestItem[],
     onSubmit: (data: IssueReceiptData) => Promise<void>
     buttonVariant?: "default" | "link" | "destructive" | "outline" | "secondary" | "ghost" | 'none'
 }
@@ -75,8 +75,8 @@ export const IssueReceiptForm: React.FC<Props> = ({ onSubmit, paymentRequests, b
                 return
             }
             try {
-                const validAddress = await wallet.validAddress(r, 'spark')
-                if (!validAddress) {
+                const validType = await wallet.parseRecipient(r,)
+                if (validType != 'spark') {
                     setRecipientError('Invalid recipient. Please make sure it is a valid Spark address')
                     return
                 }

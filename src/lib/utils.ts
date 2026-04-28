@@ -2,7 +2,7 @@ import { BTCAsset, type Asset } from "@/components/dashboard/send";
 import { bech32m } from "bech32";
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import type { TokenBalanceMap, TokenMetadata, Wallet } from "./wallet";
+import type { BreezPayment, TokenBalanceMap, TokenMetadata, Wallet } from "./wallet";
 import { toast } from "sonner";
 import type { Bech32mTokenIdentifier } from "@buildonspark/spark-sdk";
 import type { Settings } from "./api";
@@ -28,27 +28,38 @@ export function sparkBech32ToHex(bech32Id: string) {
 
 export const send = (settings: Settings, wallet: Wallet, asset: Asset, amount: number, recipient: string, method: "spark" | "lightning" | "bitcoin") => {
   return new Promise<string>(async (resolve, reject) => {
-    try {
+    const normalizedRecipient = recipient == settings.address ? 'Bitlasso' : shortenAddress(recipient)
 
-      const normalizedRecipient = recipient == settings.address ? 'Bitlasso' : shortenAddress(recipient)
-      wallet.on('paymentSent', (payment) => {
-        if (payment.details?.type == 'token') {
-          toast.success(`Sent ${Number(payment.amount) / (10 ** payment.details.metadata.decimals)} ${asset.symbol} to ${normalizedRecipient}.`)
-        }
-        else {
-          toast.success(`Sent ${payment.amount} sats to ${normalizedRecipient}.`)
-        }
-        resolve(payment.id)
-      })
-      wallet.on('paymentFailed', (payment) => {
-        if (payment.details?.type == 'token') {
-          toast.error(`Failed to send ${Number(payment.amount) / (10 ** payment.details.metadata.decimals)} ${asset.symbol} to ${normalizedRecipient}.`)
-        }
-        else {
-          toast.error(`Failed to send ${amount} sats to ${normalizedRecipient}.`)
-        }
-        reject()
-      })
+    const onPaymentSent = (payment: BreezPayment) => {
+      if (payment.details?.type == 'token') {
+        toast.success(`Sent ${Number(payment.amount) / (10 ** payment.details.metadata.decimals)} ${asset.symbol} to ${normalizedRecipient}.`)
+      }
+      else {
+        toast.success(`Sent ${payment.amount} sats to ${normalizedRecipient}.`)
+      }
+      cleanup()
+      resolve(payment.id)
+    }
+
+    const onPaymentFailed = (payment: BreezPayment) => {
+      if (payment.details?.type == 'token') {
+        toast.error(`Failed to send ${Number(payment.amount) / (10 ** payment.details.metadata.decimals)} ${asset.symbol} to ${normalizedRecipient}.`)
+      }
+      else {
+        toast.error(`Failed to send ${amount} sats to ${normalizedRecipient}.`)
+      }
+      cleanup()
+      reject()
+    }
+
+    const cleanup = () => {
+      wallet.off('paymentSent', onPaymentSent)
+      wallet.off('paymentFailed', onPaymentFailed)
+    }
+
+    try {
+      wallet.on('paymentSent', onPaymentSent)
+      wallet.on('paymentFailed', onPaymentFailed)
 
       switch (method) {
         case 'spark':
@@ -83,11 +94,12 @@ export const send = (settings: Settings, wallet: Wallet, asset: Asset, amount: n
           break;
       }
     } catch (e) {
+      cleanup()
       const error = e as Error
-      
+
       if (error.message.includes('insufficient funds')) {
         toast.error(`Failed to send ${asset.symbol}: insufficient funds`)
-      } 
+      }
       else {
         toast.error(`Failed to send ${asset.symbol}: ${error.message}`)
         console.error(error.message)
@@ -149,4 +161,40 @@ export const subTokenBalance = (tokenBalance: TokenBalanceMap | undefined, token
     balance: entry.balance - substraction
   })
   return updated
+}
+
+export function formatTime(seconds: number) {
+  const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+  const secs = (seconds % 60).toString().padStart(2, '0');
+  return `${mins}:${secs}`;
+}
+
+export const encryptData = async (data: ArrayBuffer, key: CryptoKey) => {
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const encryptedBuffer = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data)
+
+  const encryptedArray = new Uint8Array(encryptedBuffer);
+  const combined = new Uint8Array(iv.length + encryptedArray.length);
+  combined.set(iv);
+  combined.set(encryptedArray, iv.length);
+
+  const base64Combined = btoa(String.fromCharCode(...combined));
+  return base64Combined
+}
+
+export const decryptData = async (base64Combined: string, key: CryptoKey) => {
+  const combined = new Uint8Array(atob(base64Combined).split('').map(c => c.charCodeAt(0)));
+  const iv = combined.slice(0, 12);
+  const ciphertext = combined.slice(12);
+  const decryptedBuffer = await window.crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: iv
+    },
+    key,
+    ciphertext
+  );
+  const plaintext = new TextDecoder().decode(decryptedBuffer);
+
+  return plaintext;
 }

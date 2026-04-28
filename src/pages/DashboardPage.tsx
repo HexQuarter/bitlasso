@@ -9,17 +9,17 @@ import { WalletCard } from "@/components/dashboard/wallet-card"
 import { IssueReceiptForm, type IssueReceiptData } from "@/components/dashboard/issue-receipt"
 import { PaymentRequestForm, type PaymentRequestData } from "@/components/dashboard/payment-request"
 import { ReceiptTable, type Receipt } from "@/components/dashboard/receipt-table"
-import { type SparkPayment, type TokenBalanceMap, type TokenMetadata, type TokenStats, type Wallet } from "@/lib/wallet"
-import { PaymentTable, type Payment } from "@/components/dashboard/payment-table"
-import { BTCAsset, type Asset } from "@/components/dashboard/send"
-import { addTokenBalance, send, subTokenBalance } from "@/lib/utils"
+import { type BreezPayment, type SparkPayment, type TokenBalanceMap, type TokenMetadata, type TokenStats, type Wallet } from "@/lib/wallet"
+import { PaymentTable, type PaymentRequestItem } from "@/components/dashboard/payment-table"
+import { type Asset } from "@/components/dashboard/send"
+import { addTokenBalance, send } from "@/lib/utils"
 import type { ReceiptMetadataData } from "@/components/dashboard/receipt-metadata-form"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertTriangleIcon, Coins, ExternalLink, FileText, MoreHorizontal, Pickaxe, Plus, RefreshCcw, Rocket, Wallet2, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { RevenueChart } from "@/components/dashboard/revenue-chart"
-import { fetchPaymentsRequest, getNotifSettings, listReceipts, publishReceiptMetadata, subscribePayment, subscribeRedeem } from "@/lib/nostr"
+import { fetchOrganizationSettings, fetchPaymentsRequest, getNotifSettings, listReceipts, publishReceiptMetadata, subscribePayment, subscribeRedeem, type OrgSettings } from "@/lib/nostr"
 import { Spinner } from "@/components/ui/spinner"
 import { publishPaymentRequest, type Settings } from "@/lib/api"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -43,7 +43,7 @@ export const DashboardPage = () => {
     const [tokenMetadata, setTokenMetadata] = useState<TokenMetadata | undefined>(undefined)
     const [addresses, setAddresses] = useState<{ btc: string, ln: string, spark: string } | null>(null)
     const [price, setPrice] = useState(0)
-    const [paymentRequests, setPaymentRequests] = useState<Payment[]>([])
+    const [paymentRequests, setPaymentRequests] = useState<PaymentRequestItem[]>([])
     const [receipts, setReceipts] = useState<Receipt[]>([])
     const [walletHistory, setWalletHistory] = useState<SparkPayment[]>([])
     const [notifSettingAlert, setNotifSettingAlert] = useState(false)
@@ -51,6 +51,76 @@ export const DashboardPage = () => {
     const [paymentRequestLoading, setPaymentRequestLoading] = useState(true)
     const [receiptLoading, setReceiptLoading] = useState(true)
     const [walletHistoryLoading, setWalletHistoryLoading] = useState(true)
+    const [isSyncing, setIsSyncing] = useState(false)
+    const [orgSettings, setOrgSettings] = useState<OrgSettings | undefined>(undefined)
+
+    const initOnce = useRef(false)
+    useEffect(() => {
+        if (!wallet || initOnce.current) return
+
+        void (async () => {
+            const notifSettings = await getNotifSettings(wallet)
+            if (!notifSettings || (notifSettings.email == undefined && notifSettings.npub == undefined)) {
+                setNotifSettingAlert(true)
+            }
+        })()
+
+        void (async () => {
+            const orgSettings = await fetchOrganizationSettings(wallet)
+            if (orgSettings) {
+                setOrgSettings(orgSettings)
+            }
+        })()
+
+        fetchData(wallet)
+
+        const refreshBalance = async () => {
+            await updateBalance(wallet)
+
+            const payments = await wallet.listPayments()
+            setWalletHistory(payments)
+
+            if (tokenMetadata) {
+                refreshIssuanceStats(wallet, tokenMetadata)
+            }
+        }
+        const onPaymentPending = (payment: BreezPayment) => {
+            setIsSyncing(true)
+            if (payment.paymentType == 'receive') {
+                toast.info(`Payment incoming. Waiting for confirmation...`)
+            }
+        }
+
+        const onPaymentReceived = async (payment: BreezPayment) => {
+            setIsSyncing(true)
+            if (payment.method != 'token') {
+                toast.success(`Received payment of ${Number(payment.amount)} sats`)
+                setSatsBalance((prev) => prev + payment.amount)
+            }
+            await refreshBalance()
+            setIsSyncing(false)
+        }
+
+        const onPaymentSent = async (_payment: BreezPayment) => {
+            await refreshBalance()
+            setIsSyncing(false)
+        }
+
+        const onPaymentFailed = async (_payment: BreezPayment) => {
+            setIsSyncing(false)
+        }
+
+        const onSynced = async () => {
+            await refreshBalance()
+        }
+
+        wallet.on('synced', onSynced)
+        wallet.on('paymentPending', onPaymentPending)
+        wallet.on('paymentReceived', onPaymentReceived)
+        wallet.on('paymentSent', onPaymentSent)
+        wallet.on('paymentFailed', onPaymentFailed)
+        initOnce.current = true
+    }, [wallet])
 
     const currency = localStorage.getItem('BITLASSO_CURRENCY') || 'USD'
 
@@ -70,39 +140,39 @@ export const DashboardPage = () => {
         }
     }
 
-    const attemptClaim = async (wallet: Wallet, nonce: number, attempt = 0) => {
-        if (attempt > 5) {
-            return
-        }
-        try {
-            console.log("Attempt claim", nonce)
-            await claimBalance(wallet, nonce)
-        } catch (err: any) {
-            console.log(`Claim attempt ${attempt} for nonce ${nonce} failed:`, err.message)
-            setTimeout(() => attemptClaim(wallet, nonce, attempt + 1), 2000)
-        }
-    }
+    // const attemptClaim = async (wallet: Wallet, nonce: number, attempt = 0) => {
+    //     if (attempt > 5) {
+    //         return
+    //     }
+    //     try {
+    //         console.log("Attempt claim", nonce)
+    //         await claimBalance(wallet, nonce)
+    //     } catch (err: any) {
+    //         console.log(`Claim attempt ${attempt} for nonce ${nonce} failed:`, err.message)
+    //         setTimeout(() => attemptClaim(wallet, nonce, attempt + 1), 2000)
+    //     }
+    // }
 
-    const claimBalance = async (wallet: Wallet, nonce: number) => {
-        const requestSdk = await wallet.withAccountNumber(nonce)
-        try {
-            const unclaimedBitcoinDeposits = await requestSdk.listUnclaimDeposits()
+    // const claimBalance = async (wallet: Wallet, nonce: number) => {
+    //     const requestSdk = await wallet.withAccountNumber(nonce)
+    //     try {
+    //         const unclaimedBitcoinDeposits = await requestSdk.listUnclaimDeposits()
 
-            await Promise.all(unclaimedBitcoinDeposits.map(d => requestSdk.claimDeposit(d.txid, d.vout)))
+    //         await Promise.all(unclaimedBitcoinDeposits.map(d => requestSdk.claimDeposit(d.txid, d.vout)))
 
-            const balance = await requestSdk.getBalance(true)
-            const satsBalance = Number(balance.balance)
+    //         const balance = await requestSdk.getBalance(true)
+    //         const satsBalance = Number(balance.balance)
 
-            if (satsBalance > 0) {
-                const sparkAddress = await wallet.getSparkAddress()
-                console.log('claiming from sub account', nonce, satsBalance)
-                await requestSdk.sendSparkPayment(sparkAddress, satsBalance)
-            }
-        }
-        finally {
-            await requestSdk.disconnect()
-        }
-    }
+    //         if (satsBalance > 0) {
+    //             const sparkAddress = await wallet.getSparkAddress()
+    //             console.log('claiming from sub account', nonce, satsBalance)
+    //             await requestSdk.sendSparkPayment(sparkAddress, satsBalance)
+    //         }
+    //     }
+    //     finally {
+    //         await requestSdk.disconnect()
+    //     }
+    // }
 
     const fetchData = async (wallet: Wallet) => {
         try {
@@ -158,52 +228,6 @@ export const DashboardPage = () => {
         }, 60_000)
     }
 
-    let startupOnce = useRef(false)
-
-    useEffect(() => {
-        if (!wallet) return
-        if (startupOnce.current) return
-
-        void (async () => {
-            const notifSettings = await getNotifSettings(wallet)
-            if (!notifSettings || (notifSettings.email == undefined && notifSettings.npub == undefined)) {
-                setNotifSettingAlert(true)
-            }
-        })()
-
-        fetchData(wallet)
-
-        const refreshBalance = async () => {
-            await updateBalance(wallet)
-
-            const payments = await wallet.listPayments()
-            setWalletHistory(payments)
-
-            if (tokenMetadata) {
-                refreshIssuanceStats(wallet, tokenMetadata)
-            }
-        }
-
-        wallet.on('synced', refreshBalance)
-        wallet.on('paymentPending', (payment) => {
-            if (payment.paymentType == 'receive') {
-                toast.info(`Payment incoming. Waiting for confirmation...`)
-            }
-        })
-        wallet.on('paymentReceived', async (payment) => {
-            if (payment.method != 'token') {
-                toast.success(`Received payment of ${Number(payment.amount)} sats`)
-            }
-            await refreshBalance()
-        })
-        wallet.on('paymentSent', async () => {
-            await refreshBalance()
-        })
-
-        startupOnce.current = true
-    }, [wallet])
-
-
     const refreshPaymentRequests = async () => {
         if (!wallet || !settings) return []
         const paymentRequests = await fetchPaymentsRequest(settings, wallet)
@@ -211,6 +235,7 @@ export const DashboardPage = () => {
             const maxNonce = Math.max(...paymentRequests.map(p => p.nonce))
             localStorage.setItem("BITLASSO_PAYMENT_NONCE", maxNonce.toString())
         }
+
         setPaymentRequests(paymentRequests)
 
         void (() => {
@@ -225,8 +250,9 @@ export const DashboardPage = () => {
                         )
                     );
 
+
                     // Claim immediately on settlement event
-                    await attemptClaim(wallet, payment.nonce)
+                    // await attemptClaim(wallet, payment.nonce)
                 })
 
                 subscribeRedeem(settings as Settings, payment.id, (redeemAmount, redeemTx) => {
@@ -320,40 +346,15 @@ export const DashboardPage = () => {
             return
         }
 
-        let txId: string
-        if (data.feeSats) {
-            txId = await send(settings, wallet, BTCAsset, data.feeSats, settings.address, "spark")
-        }
-        else {
-            if (!tokenBalances) {
-                toast.error('No credits available to activate payment request')
-                return
-            }
-            const burnToken = tokenBalances.get(settings.tokenAddress)
-            if (!burnToken) {
-                toast.error('No credits available to activate payment request')
-                return
-            }
-
-            const creditsToBurn = 1
-            const decimalsFactor = BigInt(10) ** BigInt(burnToken.tokenMetadata.decimals)
-            const burnAmount = BigInt(creditsToBurn) * decimalsFactor
-
-            const { id } = await wallet.burnTokens(burnAmount, burnToken.tokenMetadata.identifier)
-            txId = id
-
-            setTokenBalances((prev) => subTokenBalance(prev, burnToken.tokenMetadata, 1))
-        }
-
         const currentMax = Math.max(
             Number(localStorage.getItem('BITLASSO_PAYMENT_NONCE') || '1'),
             ...paymentRequests.map(p => p.nonce) // use in-memory state as source of truth
         )
         const nonce = currentMax + 1
 
+        await publishPaymentRequest(settings, wallet, nonce, data.amount, tokenMetadata.identifier, data.discountRate, data.description, tokenBalances)
         localStorage.setItem('BITLASSO_PAYMENT_NONCE', nonce.toString())
 
-        await publishPaymentRequest(txId, wallet, nonce, data.amount, tokenMetadata.identifier, data.discountRate, data.description)
         await refreshPaymentRequests()
         void (() => posthog?.capture('payment_request_created', {
             amount_usd: data.amount,
@@ -565,6 +566,7 @@ export const DashboardPage = () => {
                         }
                         {!walletLoading && wallet && addresses &&
                             <WalletCard
+                                isSyncing={isSyncing}
                                 addresses={addresses}
                                 satsBalance={Number(satsBalance)}
                                 tokens={tokensData}
@@ -573,7 +575,8 @@ export const DashboardPage = () => {
                                 onSend={handleSend}
                                 payments={walletHistory}
                                 wallet={wallet}
-                                walletHistoryLoading={walletHistoryLoading} />}
+                                walletHistoryLoading={walletHistoryLoading} 
+                                />}
 
                     </div>
                 </div>
@@ -620,14 +623,14 @@ export const DashboardPage = () => {
                         </CardFooter>
                     </Card>
                 }
-                {!tokenMetadataLoading && <Card className="lg:col-span-1" id="payments">
+                {!tokenMetadataLoading && wallet && <Card className="lg:col-span-1" id="payments">
                     <CardHeader className="flex flex-col">
                         <CardTitle className="flex lg:flex-row flex-col justify-between w-full gap-5">
                             <div className="flex flex-col lg:flex-row lg:justify-between lg:w-full gap-2">
                                 <p className="border-primary/40 flex gap-2 font-serif font-light text-2xl">Payment requests</p>
                                 {paymentRequestLoading && <Skeleton className="h-10 w-40" />}
                                 {!paymentRequestLoading && settings && <CardAction className='w-full lg:w-auto'>
-                                    {satsBalance > 0n && <PaymentRequestForm settings={settings} onSubmit={handlePaymentRequest} price={price} creditBalance={creditBalance} onPurchaseCredits={handlePurchaseCredits} />}
+                                    {satsBalance > 0n && <PaymentRequestForm wallet={wallet} settings={settings} onSubmit={handlePaymentRequest} price={price} creditBalance={creditBalance} satsBalance={Number(satsBalance)} onPurchaseCredits={handlePurchaseCredits} />}
                                     {satsBalance == 0n && <Button className="flex gap-2 has-[>svg]:pr-5 bg-primary hover:bg-black w-full lg:w-auto" disabled><Plus className="h-4 w-4" />New payment request</Button>}
                                 </CardAction>}
                             </div>
@@ -653,7 +656,7 @@ export const DashboardPage = () => {
                                 <PaymentTable
                                     data={paymentRequests.map(r => ({
                                         createdAt: r.createdAt,
-                                        amount: r.amount,
+                                        amount: r.amount / (1 + (orgSettings ? orgSettings.vat : 0)),
                                         description: r.description,
                                         settleTx: r.settleTx,
                                         discountRate: r.discountRate,
@@ -661,7 +664,8 @@ export const DashboardPage = () => {
                                         redeemAmount: r.redeemAmount,
                                         redeemTx: r.redeemTx,
                                         nonce: r.nonce,
-                                        settlementMode: r.settlementMode
+                                        settlementMode: r.settlementMode,
+                                        sharingKey: r.sharingKey
                                     }))}
                                     onDeriveReceipt={handleIssueReceipt}
                                     paymentRequests={paymentRequests}

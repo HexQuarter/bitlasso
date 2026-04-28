@@ -7,9 +7,11 @@ import { Button } from "../ui/button"
 
 const included = [
   "Payment request page generation",
-  "Multi payment support: Spark, Lightning, Bitcoin",
   "Client redemption flow: mint receipts & discount",
-  "Self-custody funds settlement"
+  "Self-custody funds settlement",
+  "Privacy-oriented: Metadata end to end encrypted",
+  "Support L402 programmatic access for agent integration",
+  "Lightning-network payment oriented for instant settlement"
 ]
 
 const bundles = [

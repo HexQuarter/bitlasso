@@ -8,7 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from "../ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "../ui/chart"
 import { Area, AreaChart, CartesianGrid } from "recharts"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo } from "react"
 import { Skeleton } from "../ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert"
 import { Spinner } from "../ui/spinner"
@@ -21,6 +21,7 @@ type Token = {
 }
 
 type Props = {
+    isSyncing: boolean,
     addresses: Addresses
     satsBalance: number
     tokens: Token[]
@@ -45,7 +46,7 @@ const chartConfig = {
     }
 } satisfies ChartConfig
 
-export const WalletCard: React.FC<Props> = ({ satsBalance, tokens, addresses, price, currency, onSend, payments, wallet, walletHistoryLoading }) => {
+export const WalletCard: React.FC<Props> = ({ isSyncing, satsBalance, tokens, addresses, price, currency, onSend, payments, wallet, walletHistoryLoading }) => {
     const assets: Asset[] = [
        { ...BTCAsset, max: satsBalance },
         ...tokens.map((t) => {
@@ -85,18 +86,6 @@ export const WalletCard: React.FC<Props> = ({ satsBalance, tokens, addresses, pr
             }, [])
     }, [payments])
 
-    const [isSyncing, setIsSyncing] = useState(false)
-
-    useEffect(() => {
-        if (!wallet) return
-        wallet.on('paymentPending', (_payment) => {
-            setIsSyncing(true)
-        })
-        wallet.on('paymentReceived', () => {
-            setIsSyncing(false)
-        })
-    }, [wallet])
-
     return (
         <Card className="h-full">
             <CardHeader className="font-mono uppercase tracking-wider text-gray-500 text-xs flex justify-between items-center">
@@ -121,7 +110,15 @@ export const WalletCard: React.FC<Props> = ({ satsBalance, tokens, addresses, pr
             <CardContent className="flex flex-col gap-5">
                 <div className="border-primary/40 flex flex-col gap-2">
                     <span className="text-2xl font-semibold">{currencyFormat.format((satsBalance / 100_000_000) * price)}</span>
-                    <span className="text-xs text-muted-foreground flex gap-2"><span>{satsBalance} sat</span> {isSyncing && <Spinner className="text-primary"/>}</span>
+                    <span className="text-xs text-muted-foreground flex gap-2">
+                        <span>{satsBalance} sat</span>
+                        {isSyncing && (
+                             <div className="flex items-center gap-1">
+                                 <Spinner className="text-primary h-3 w-3" />
+                                 <span className="text-[10px] animate-pulse">Syncing...</span>
+                             </div>
+                         )}
+                     </span>
                 </div>
                 {satsBalance == 0 &&
                     <Alert className="py-5">

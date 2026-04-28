@@ -1,5 +1,4 @@
-import type { NotificationSettings } from "@/components/dashboard/notification-setting";
-import { SimplePool, getPublicKey, type Filter, type Event, type NostrEvent } from "nostr-tools"
+import { SimplePool, getPublicKey, type Filter, type Event, type NostrEvent, nip44 } from "nostr-tools"
 
 import { HDKey } from "@scure/bip32";
 import { bech32 } from "bech32";
@@ -8,13 +7,14 @@ import { mnemonicToSeedSync } from "@scure/bip39";
 import type { Wallet } from "./wallet";
 import type { Receipt } from "@/components/dashboard/receipt-table";
 import type { Settings } from "./api";
+import { decryptData } from "./utils";
 
 const pool = new SimplePool({
     enablePing: true,
     enableReconnect: true
 });
 
-const BACKEND_RELAY = import.meta.env.DEV ? "ws://localhost:3000/nostr" : "wss://api.bitlasso.xyz/nostr"
+const BACKEND_RELAY = import.meta.env.DEV ? "ws://localhost:4000/nostr" : "wss://api.bitlasso.xyz/nostr"
 const BACKUP_RELAIS = [
     "wss://relay.damus.io",
     "wss://relay.primal.net",
@@ -163,6 +163,53 @@ const subscribeAndSync = (
     };
 }
 
+export type OrgSettings = {
+    name: string
+    vat: number
+    registrationNumber: string
+}
+
+export const registerOrganizationSettings = async (wallet: Wallet, orgSettings: OrgSettings) => {
+    const conversationKey = wallet.ecdhNostrKey(wallet.getNostrPublicKey())
+    if (!conversationKey) throw new Error("Conversation key undefined")
+    const encrypted = await nip44.encrypt(JSON.stringify(orgSettings), conversationKey)
+
+    const event = {
+        kind: 30078,
+        content: encrypted,
+        pubkey: wallet.getNostrPublicKey(),
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [["d", "bitlasso/org_settings"]],
+    }
+
+    const signedEvent = wallet.signNostrEvent(event);
+    await Promise.any(pool.publish(RELAYS, signedEvent))
+    return signedEvent.id
+}
+
+export const fetchOrganizationSettings = async (wallet: Wallet): Promise<OrgSettings | undefined> => {
+    const events = await fetchAndSync({
+        kinds: [30078],
+        authors: [wallet.getNostrPublicKey()],
+        "#d": ["bitlasso/org_settings"]
+    });
+    if (events.length > 0) {
+        const { content } = events[0]
+        const conversationKey = wallet.ecdhNostrKey(wallet.getNostrPublicKey())
+        if (!conversationKey) throw new Error("Conversation key undefined")
+        const settings = JSON.parse(nip44.decrypt(content, conversationKey)) as OrgSettings
+        settings.vat = parseFloat(settings.vat.toString())
+        return settings
+    }
+    return undefined
+}
+
+export type NotificationSettings = {
+    email?: string
+    npub?: string
+    webhook?: string
+}
+
 export const registerNotifSettings = async (wallet: Wallet, notifSettings: NotificationSettings) => {
     const event = {
         kind: 30078,
@@ -200,30 +247,57 @@ export const fetchPaymentsRequest = async (settings: Settings, wallet: Wallet): 
     if (events.length == 0) return []
 
     const promiseResults = await Promise.allSettled(events.map(e => eventToPaymentRequest(settings, e)))
-    return promiseResults
+    const conversationKey = wallet.ecdhNostrKey(wallet.getNostrPublicKey())
+    if (!conversationKey) throw new Error("Conversation key undefined")
+
+    return await Promise.all(promiseResults
         .filter(p => p.status == 'fulfilled')
-        .map(p => p.value)
+        .map(async (p) => {
+            try {
+                const request = p.value as PaymentRequest
+                if (!request.sharingKey) return request
+                const sharingKey = nip44.decrypt(request.sharingKey, conversationKey)
+                request.sharingKey = sharingKey
+
+                const key = await crypto.subtle.importKey('raw', new Uint8Array(hexToBytes(sharingKey)), 'AES-GCM', false, ['decrypt'])
+                if (request.description && request.description != '') {
+                    const decryptedDescription = await decryptData(request.description, key)
+                    request.description = decryptedDescription
+                }
+
+                return request
+            }
+            catch (e) {
+                console.log(e)
+                throw e
+            }
+        }))
 }
 
-export const fetchPaymentRequest = async (settings: Settings, id: string): Promise<PaymentRequest> => {
+export const fetchPaymentRequest = async (settings: Settings, id: string, accessKey?: string): Promise<PaymentRequest> => {
     const events = await fetchAndSync({
         kinds: [30078],
-        ids: [id],
-        authors: [settings.publicKey]
+        authors: [settings.publicKey],
+        "#d": ["bitlasso/req/" + id]
     });
 
     if (events.length == 0) {
         throw new Error('Payment not found')
     }
 
-    return eventToPaymentRequest(settings, events[0])
+    return eventToPaymentRequest(settings, events[0], accessKey)
 }
 
-const eventToPaymentRequest = async (settings: Settings, event: NostrEvent) => {
+const eventToPaymentRequest = async (settings: Settings, event: NostrEvent, accessKey?: string) => {
     try {
-        const { id, created_at, content } = event
+        const { created_at, content } = event
         let paymentRequest = JSON.parse(content) as PaymentRequest
-        paymentRequest.id = id
+        const pubkey = getTag(event.tags, "p") as string
+
+        const digest = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(paymentRequest.invoiceId))
+
+        paymentRequest.id = bytesToHex(new Uint8Array(digest))
+        paymentRequest.pubkey = pubkey
         paymentRequest.createdAt = new Date(created_at * 1000)
         const [paymentDetails, redeemDetails] = await Promise.all([fetchPaymentDetails(settings, paymentRequest.id), fetchRedeemDetails(settings, paymentRequest.id)])
         if (paymentDetails) {
@@ -236,6 +310,25 @@ const eventToPaymentRequest = async (settings: Settings, event: NostrEvent) => {
             paymentRequest.redeemAmount = redeemDetails.redeemAmount
             paymentRequest.redeemTx = redeemDetails.transaction
         }
+
+        if (accessKey && paymentRequest.sharingKey) {
+            try {
+                const key = await crypto.subtle.importKey('raw', new Uint8Array(hexToBytes(accessKey)), 'AES-GCM', false, ['decrypt'])
+                if (paymentRequest.description && paymentRequest.description != '') {
+                    const decryptedDescription = await decryptData(paymentRequest.description, key)
+                    paymentRequest.description = decryptedDescription
+                }
+
+                if (paymentRequest.orgDetails && paymentRequest.orgDetails != '') {
+                    const decryptedOrgDetails = await decryptData(paymentRequest.orgDetails as string, key)
+                    paymentRequest.orgDetails = JSON.parse(decryptedOrgDetails) as OrgSettings
+                }
+            }
+            catch (e) {
+                console.log(e)
+            }
+        }
+
         return paymentRequest
     }
     catch (e) {
@@ -278,11 +371,11 @@ const fetchRedeemDetails = async (settings: Settings, requestId: string) => {
 
 export type PaymentRequest = {
     id: string,
+    pubkey: string,
     amount: number;
     description: string | undefined;
-    btcAddress: string,
-    sparkAddress: string,
     lightningInvoice: string,
+    redeemAddress: string,
     settleTx: string | undefined,
     discountRate: number,
     tokenId: string,
@@ -291,6 +384,9 @@ export type PaymentRequest = {
     redeemTx?: string
     nonce: number
     settlementMode: "spark" | "btc"
+    sharingKey?: string
+    orgDetails?: string | OrgSettings
+    invoiceId: string
 }
 
 export const publishReceiptMetadata = async (wallet: Wallet, transactionId: string, amount: number, createdAt: Date, description?: string, recipient?: string, paymentId?: string) => {
@@ -358,7 +454,7 @@ export const getBitcoinPrice = async (settings: Settings, id: string): Promise<{
     return { usdPrice, date: new Date(events[0].created_at * 1000) }
 }
 
-// const getTag = (tags: string[][], name: string) => tags.find(t => t[0] === name)?.[1]
+const getTag = (tags: string[][], name: string) => tags.find(t => t[0] === name)?.[1]
 const getTagByMarker = (tags: string[][], name: string, marker: string) =>
     tags.find(t => t[0] === name && t[3] === marker)?.[1]
 

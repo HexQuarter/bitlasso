@@ -1,38 +1,29 @@
-import { type TabType } from "@/components/dashboard/receive-tabs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
 import { getPaymentPrice, type Settings } from "@/lib/api"
-import { shortenAddress } from "@/lib/utils"
-import { Copy, ExternalLink, GiftIcon, MailIcon } from "lucide-react"
+import { formatTime } from "@/lib/utils"
+import { CheckCircle, Copy, GiftIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-import { useParams } from "react-router"
-import { usePostHog } from "@posthog/react";
+import { useParams, useSearchParams } from "react-router"
 
-import { getProviders, request, RpcErrorCode } from "sats-connect";
+import { getProviders } from "sats-connect";
 import { toast } from "sonner"
 
 import LogoPng from '../../public/logo.svg'
-import { fetchPaymentRequest, getBitcoinPrice, subscribePayment, type PaymentRequest } from "@/lib/nostr"
-import { Tabs, TabsList } from "@/components/ui/tabs"
-import { TabsContent, TabsTrigger } from "@radix-ui/react-tabs"
+import { fetchPaymentRequest, getBitcoinPrice, subscribePayment, subscribeRedeem, type OrgSettings, type PaymentRequest } from "@/lib/nostr"
 import QRCode from "react-qr-code"
 
-import XVerseWhiteLogo from '../../public/xverse_white_logo.png'
-
-import { Separator } from "@/components/ui/separator"
 import { useSettings } from "@/hooks/use-settings"
 import { LoyaltySection } from "@/components/payment/loyalty-section"
-import { FaBitcoin } from "react-icons/fa";
-import { BiSolidZap } from "react-icons/bi";
 import { PaidRequest } from "@/components/payment/paid-request"
-import { IconDiscount } from "@tabler/icons-react"
-import { PaymentRequestInfo } from "@/components/payment/payment-request-info"
+import { Slider } from "@/components/ui/slider"
 
 type PaymentConfirmation = { transaction: string, settlementMode: string, btcAmount: number }
 
 export const PaymentPage: React.FC = () => {
     const { id } = useParams()
+    const [searchParams] = useSearchParams()
     const { settings } = useSettings()
     const [loading, setLoading] = useState(true)
 
@@ -51,7 +42,8 @@ export const PaymentPage: React.FC = () => {
         ran.current = true;
 
         if (id && !paymentRequest) {
-            fetchPaymentRequest(settings, id).then(async (paymentRequest) => {
+            const accessKey = searchParams.get('key')
+            fetchPaymentRequest(settings, id, accessKey || undefined).then(async (paymentRequest) => {
                 setLoading(false)
                 setPaymentRequest(paymentRequest)
 
@@ -64,8 +56,18 @@ export const PaymentPage: React.FC = () => {
                         setBtcAmountDate(priceDetails.date)
                     })
                 }
+
+                if (!paymentRequest.redeemAmount) {
+                    subscribeRedeem(settings, paymentRequest.id, () => {
+                        toast.success('Token have been redeemed. You can proceed to the payment with the discount applied')
+                        fetchPaymentRequest(settings, paymentRequest.id, accessKey || undefined).then(paymentRequest => {
+                            setPaymentRequest(paymentRequest)
+                        })
+                    })
+                }
             })
-                .catch(() => {
+                .catch((e) => {
+                    console.error(e)
                     setLoading(false)
                     setFetchError('Payment request is not found.')
                     setFetchErrorDetails('The payment request you are trying to access is not accessible. Please check the link or contact the merchant for assistance. If the issue persists please contact us for additional support.')
@@ -94,7 +96,7 @@ export const PaymentPage: React.FC = () => {
 
     return (
         <div className="bg-gray-50 min-h-screen">
-            <div className="lg:max-w-6xl mx-auto">
+            <div className="w-1/2 mx-auto">
                 {loading &&
                     <div className="flex h-screen">
                         <div className='m-auto flex flex-col items-center gap-2'>
@@ -138,13 +140,13 @@ const ErrorState: React.FC<{ error: string, errorDetails: string }> = ({ error, 
             <CardHeader>
                 <h1 className="text-4xl text-black font-serif">{error}</h1>
             </CardHeader>
-            <CardContent className="mt-10 flex flex-col gap-5">
-                {errorDetails.split('.').map((s, i) => (
-                    <p className="text-gray-500 text-xl" key={i}>{s}</p>
+            <CardContent className="mt-10 flex flex-col gap-1">
+                {errorDetails.split('.').filter(s => s).map((s, i) => (
+                    <p className="text-gray-500" key={i}>{s}.</p>
                 ))}
             </CardContent>
-            <CardFooter className="flex justify-center">
-                <p className="text-xs text-center text-slate-600"><a href='mailto:bitlasso@hexquarter.com'>support</a></p>
+            <CardFooter className=" mt-10">
+                <p className="text-xs text-slate-600">If the issue persists, you can <a href='mailto:bitlasso@hexquarter.com' className="underline">contact us</a> for additional support.</p>
             </CardFooter>
         </Card>
     </div>
@@ -156,19 +158,13 @@ const PendingPaymentState: React.FC<{
     handleConfirmation: (confirmation: PaymentConfirmation) => void
 }> = ({ settings, paymentRequest, handleConfirmation }) => {
 
-    const posthog = usePostHog()
-
     const [remainingRefreshTime, setRemainingRefreshTime] = useState(0)
     const [btcAmount, setBtcAmount] = useState(0)
+    const [lightningInvoice, setLightningInvoice] = useState<string>(paymentRequest.lightningInvoice)
 
     const [redeemDetails, setRedeemDetails] = useState<{ redeemAmount: number, redeemTransaction: string } | undefined>(paymentRequest.redeemTx ? { redeemAmount: paymentRequest.redeemAmount as number, redeemTransaction: paymentRequest.redeemTx as string } : undefined)
     const [availableWallet, setAvailableWallet] = useState<boolean>(false)
 
-    const [sendLoading, setSendLoading] = useState(false)
-    const [sendError, setSendError] = useState<undefined | string>(undefined)
-    const [paymentMade, setPaymentMade] = useState(false)
-    const [selectedPaymentTab, setSelectedPaymentTab] = useState("spark")
-    const [paymentAddress, setPaymentAddress] = useState<undefined | string>(undefined)
     const [tokenMetadata, setTokenMetadata] = useState<{ ticker: string } | undefined>(undefined)
 
     useEffect(() => {
@@ -177,7 +173,7 @@ const PendingPaymentState: React.FC<{
             setAvailableWallet(true)
         }
 
-        void(() => {
+        void (() => {
             fetch(`https://api.sparkscan.io/v1/tokens/${paymentRequest.tokenId}`)
                 .then(async (r) => {
                     if (r.ok) {
@@ -207,62 +203,16 @@ const PendingPaymentState: React.FC<{
         if (!response) {
             return
         }
-        const { btc, endtime } = response
+        const { btc, endtime, lightningInvoice } = response
         setBtcAmount(btc)
+        if (lightningInvoice) {
+            setLightningInvoice(lightningInvoice)
+        }
 
         const dateNow = Date.now()
         const remainingSecs = Math.floor((endtime - dateNow) / 1000)
         setRemainingRefreshTime(remainingSecs)
         return remainingSecs
-    }
-
-    const payWithXVerse = async () => {
-        if (!paymentAddress) return
-        setSendError(undefined)
-        setSendLoading(true)
-        const amountSats = BigInt(Math.floor(btcAmount * 100_000_000))
-        if (selectedPaymentTab == 'spark') {
-            const response = await request('spark_transfer', { amountSats: amountSats.toString(), receiverSparkAddress: paymentAddress })
-            setSendLoading(false)
-            if (response.status == 'error') {
-                if (response.error.code === RpcErrorCode.USER_REJECTION) {
-                    return
-                }
-                setSendError(response.error.message)
-                return
-            }
-
-            void(() => posthog?.capture('payment_completed', { payment_method: 'spark', amount_btc: btcAmount, payment_id: paymentRequest?.id }))()
-            setPaymentMade(true)
-        }
-        else if (selectedPaymentTab == 'btc') {
-            const response = await request('sendTransfer', { recipients: [{ address: paymentAddress, amount: Number(amountSats) }] })
-            setSendLoading(false)
-            if (response.status === "error") {
-                if (response.error.code === RpcErrorCode.USER_REJECTION) {
-                    return
-                }
-                setSendError(response.error.message)
-                return
-            }
-
-            void(() => posthog?.capture('payment_completed', { payment_method: 'btc', amount_btc: btcAmount, payment_id: paymentRequest?.id }))()
-            setPaymentMade(true)
-        }
-    }
-
-    const handleSelectPaymentChange = (tab: TabType) => {
-        setSelectedPaymentTab(tab)
-        void(() => posthog?.capture('payment_method_selected', { payment_method: tab, payment_id: paymentRequest?.id }))()
-        if (tab == 'spark') {
-            setPaymentAddress(paymentRequest?.sparkAddress)
-        }
-        else if (tab == 'lightning') {
-            setPaymentAddress(paymentRequest?.lightningInvoice)
-        }
-        else {
-            setPaymentAddress(paymentRequest?.btcAddress)
-        }
     }
 
     const copy = (address: string) => {
@@ -271,260 +221,127 @@ const PendingPaymentState: React.FC<{
         setTimeout(() => {
             toast.dismiss(toastId)
         }, 2000)
+        setCopied(true)
     }
 
     const maxRedeemable = !redeemDetails ? paymentRequest.amount * (paymentRequest.discountRate / 100) : 0
     const maxRedeemableToken = Math.floor(Math.max(0, maxRedeemable))
-
+    const [copied, setCopied] = useState(false);
     const [openedLoyalty, setOpenLoyalty] = useState(false)
 
     return (
-        <div className="flex flex-col lg:py-20">
-            <Card className="flex flex-col gap-10 p-0 gap-0 shadow-xs not-sm:rounded-none">
-                <CardHeader className='flex flex-col md:flex-row p-0! md:items-center justify-between border-b border-border/60 p-4!'>
-                    <div className="flex gap-2 items-center hover:cursor-pointer" onClick={() => window.open('/', 'blank')} >
-                        <img src={LogoPng} className='w-8' />
-                        <div className='font-serif text-2xl tracking-tight text-foreground flex items-center'>
-                            <span className='text-primary'>bit</span>
-                            lasso
-                        </div>
+        <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-6">
+            <div className="w-full max-w-md">
+                <div className='flex items-center gap-2 hover:cursor-pointer justify-center mb-10' onClick={() => window.open('/?utm_source=bitlasso.xyz&utm_medium=payment_page', 'blank')} >
+                    <img src={LogoPng} className='w-8' />
+                    <div className='font-serif tracking-tighter text-foreground flex items-center'>
+                        <p className="flex gap-2 items-end">
+                            <span className="text-3xl"><span className="text-primary">bit</span>lasso</span>
+                        </p>
                     </div>
-                    <div className="not-sm:hidden text-xs text-center text-slate-600 flex items-center text-muted-foreground gap-2 flex-col group hover:cursor-pointer" onClick={() => location.href = 'mailto:bitlasso@hexquarter.com'}>
-                        <div className="border border-primary/20 rounded-full p-2 group-hover:bg-primary/10 ">
-                            <MailIcon className="h-3 w-3 text-primary " />
+                </div>
+                <Card className="rounded-2xl shadow-sm border bg-white p-0 gap-0 shadow-xs not-sm:rounded-none">
+                    <CardHeader className='flex flex-col p-0! md:items-center justify-between border-b border-border/60 p-4!'>
+                        <span className="text-xs text-neutral-400">Requesting payment from</span>
+                        <h1 className="text-lg text-muted-foreground">{paymentRequest.orgDetails ? (paymentRequest.orgDetails as OrgSettings).name : ''}</h1>
+                    </CardHeader>
+                    <CardContent className="p-6 space-y-6">
+                        <div className="space-y-1 text-center">
+                            <div className="text-sm italic">{paymentRequest.description || ''}</div>
                         </div>
-                        <span className="uppercase text-[10px] text-muted-foreground/80">PROBLEM ?</span>
-                    </div>
-                </CardHeader>
-                <CardContent className="flex md:flex-row flex-col">
-                    <div className="gap-10 p-0 flex-1 bg-white p-5 md:p-10 flex flex-col lg:w-1/2 ">
-                        <div className="flex flex-col gap-5">
-                            <h1 className="text-2xl">
-                                <span className="text-primary">Payment</span> request
-                            </h1>
-                            <p className="text-sm text-muted-foreground">Find payment details below</p>
-                        </div>
-                        <PaymentRequestInfo paymentRequest={paymentRequest} btcAmount={btcAmount} redeemDetails={redeemDetails} remainingRefreshTime={remainingRefreshTime} />
-                        {maxRedeemableToken > 0 &&
-                            <div className="flex flex-col gap-2 p-0 ">
-                                <div className="flex items-center gap-2 text-muted-foreground/60 ">
-                                    <IconDiscount className="w-4 h-4" />
-                                    <p className="text-sm flex items-center gap-2 font-mono uppercase tracking-[0.2em] text-xs flex">Loyalty program </p>
-                                </div>
-                                <div className="flex gap-2 flex-col">
-                                    {!openedLoyalty && <div className="flex items-center justify-between gap-2">
-                                        <p className="text-sm">Discount is available to redeem tokens</p>
-                                        <Button variant={'outline'} className="text-xs h-8" onClick={() => setOpenLoyalty(true)}><GiftIcon className="text-primary" /> Save up to {paymentRequest.discountRate}%</Button>
-                                    </div>}
-                                    {openedLoyalty &&
-                                        <LoyaltySection
-                                            settings={settings}
-                                            paymentRequest={paymentRequest}
-                                            handleRedeem={((transaction, amount) => setRedeemDetails({ redeemAmount: amount, redeemTransaction: transaction }))}
-                                            maxRedeemableToken={maxRedeemableToken}
-                                            availableWallet={availableWallet}
-                                        />
-                                    }
-                                </div>
+                        <div className="space-y-1 text-center">
+                            <div className="text-sm text-neutral-500">Amount</div>
+                            <div className="text-3xl font-semibold">
+                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount)}
                             </div>
-                        }
-                        {redeemDetails && redeemDetails.redeemAmount > 0 &&
-                            <div className="flex flex-col gap-3">
+                            <div className="flex justify-center items-center gap-2">
+                                <span className="text-xs text-neutral-400">Net: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount / (1 + (paymentRequest.orgDetails as OrgSettings).vat))}</span>
+                                <span className="text-xs text-neutral-400">{paymentRequest.orgDetails
+                                    ? (paymentRequest.orgDetails as OrgSettings).vat !== undefined ? ` VAT: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount - (paymentRequest.amount / (1 + (paymentRequest.orgDetails as OrgSettings).vat)))} (${(paymentRequest.orgDetails as OrgSettings).vat * 100}%)` : ''
+                                    : ''
+                                }</span>
+                            </div>
+                            <div className="text-xs text-neutral-500 flex justify-center flex-col">
+                                {btcAmount > 0 &&
+                                    `${Math.floor(btcAmount * 100_000_000)} sats • ${btcAmount} BTC`
+                                }
+                                {btcAmount == 0 && <span className="flex justify-center items-center gap-2"><Spinner /> Fetch Bitcoin price</span>}
+                                {remainingRefreshTime !== undefined && remainingRefreshTime > 0 &&
+                                    <div className="flex flex-col gap-2 mt-5 w-1/2 justify-center mx-auto">
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-xs text-muted-foreground">Price refreshes in {formatTime(remainingRefreshTime)}</p>
+                                        </div>
+                                        <Slider max={60 * 5} min={0} value={[remainingRefreshTime > 0 ? 60 * 5 - remainingRefreshTime : 0]} className="" withThumb={false} />
+                                    </div>
+                                }
+                            </div>
+                        </div>
 
-                                <div className="flex items-center gap-2"> <IconDiscount className="text-muted-foreground/60 w-4 h-4" />
-                                    <p className="text-sm flex items-center gap-2 font-mono uppercase text-muted-foreground/60 tracking-[0.2em] text-xs flex">Loyalty program </p>
-                                </div>
-
-                                <div className="flex flex-col gap-2">
-                                    <p className="text-sm text-foreground">
-                                        A discount has been applied after redemption of {" "}
-                                        <span className="font-semibold">{redeemDetails.redeemAmount} {tokenMetadata ? tokenMetadata.ticker : 'token'} (= ${redeemDetails.redeemAmount} off)</span>.
+                        {redeemDetails &&
+                            <div className="text-center space-y-1">
+                                <p className="text-sm text-neutral-500">Loyalty program </p>
+                                <div className="flex flex-col gap-2 text-center">
+                                    <p className="">
+                                        Redemption of {" "}
+                                        <span className="font-semibold">{redeemDetails?.redeemAmount || 0} {tokenMetadata ? tokenMetadata.ticker : 'token'} (= ${redeemDetails?.redeemAmount || 0} off)</span>.
                                     </p>
-                                    <div>
-                                        <Button variant='outline' className="flex gap-2 text-xs h-8" onClick={() => window.open(`https://sparkscan.io/tx/${redeemDetails.redeemTransaction}`, '_blank')}>
-                                            Check out transaction <ExternalLink />
-                                        </Button>
-                                    </div>
+                                    <a className="text-xs text-neutral-400" href={`https://sparkscan.io/tx/${redeemDetails.redeemTransaction}`} target="_blank">
+                                        Check out transaction
+                                    </a>
                                 </div>
+                            </div>}
+
+                        <div className="flex justify-center">
+                            <div className="w-48 h-48 bg-neutral-100 rounded-xl flex items-center justify-center text-neutral-400 text-xs text-center p-4">
+                                <QRCode value={lightningInvoice} />
                             </div>
-                        }
-                    </div>
-                    <div className="gap-10 p-0 flex-1 bg-primary/5 p-5 md:p-10 flex flex-col ">
-                        <div className="flex flex-col gap-5">
-                            <h2 className="text-2xl">
-                                <span className="text-primary">Payment</span> method
-                            </h2>
-                            <p className="text-sm text-muted-foreground">Choose how you’d like to pay</p>
                         </div>
-                        <div className="flex flex-col gap-10">
-                            <Tabs className="gap-3" onValueChange={(e) => handleSelectPaymentChange(e as TabType)}>
-                                <TabsList className="p-0 border-0 rounded-none flex-col flex-row flex h-full bg-transparent gap-2 items-start">
-                                    {paymentRequest.sparkAddress != '' && <TabsTrigger value="spark" className="transition border-0 bg-white  text-sm data-[state=active]:text-white px-4 py-2 w-full data-[state=active]:bg-black data-[state=active]:border-primary/20 rounded-full shadow-sm h-10 flex items-center justify-center gap-2 text-black ">
-                                        <svg width="20" height="20" viewBox="0 0 68 65" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                            <path fill-rule="evenodd" clip-rule="evenodd" d="M39.7159 25.248L40.8727 0.570312H26.4219L27.5787 25.2483L4.46555 16.5221L0 30.2656L23.8282 36.7915L8.38717 56.0763L20.0781 64.5703L33.6483 43.9245L47.2179 64.5695L58.9089 56.0755L43.4679 36.7909L67.2937 30.2657L62.8281 16.5221L39.7159 25.248ZM33.6472 33.6013L33.647 33.6007H33.6466L33.6462 33.6021L33.6472 33.6013Z" fill="currentColor" />
-                                        </svg>
-                                        Spark
-                                    </TabsTrigger>}
-                                    {paymentRequest.lightningInvoice != '' && <TabsTrigger value="ln" className="transition order-0 bg-white text-sm data-[state=active]:text-white px-4 py-2 w-full data-[state=active]:bg-black data-[state=active]:border-primary/20 rounded-full shadow-sm h-10 flex items-center justify-center gap-2 text-amber-500 ">
-                                        <BiSolidZap className="h-6 w-6" />
-                                        Lightning
-                                    </TabsTrigger>}
-                                    {paymentRequest.btcAddress != '' && <TabsTrigger value="btc" className="transition border-0 bg-white text-sm data-[state=active]:text-white px-4 py-2 w-full data-[state=active]:bg-black data-[state=active]:border-primary/20 rounded-full shadow-sm h-10 flex items-center justify-center gap-2 text-primary">
-                                        <FaBitcoin className="h-6 w-6" />
-                                        Bitcoin
-                                    </TabsTrigger>}
-                                </TabsList>
-                                {paymentRequest.sparkAddress != ''&& <TabsContent value="spark" className="p-5 bg-white backdrop-blur-sm rounded-xl ">
-                                    <div className="flex flex-col gap-2 ">
-                                        <div className="text-sm flex flex-col gap-5">
-                                            <div className="flex md:flex-row flex-col justify-between gap-1">
-                                                <p className="text-lg font-medium text-xl font-serif">Pay with Spark</p>
-                                                <div className="flex gap-2">
-                                                    <span className="text-xs text-primary font-mono">
-                                                        INSTANT • ZERO FEE
-                                                    </span>
-                                                </div>
-                                            </div>
 
-                                            <p className="text-muted-foreground text-xs">Send exactly <span className="font-semibold">{new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.floor(btcAmount * 100_000_000))} sats</span> to complete this payment.</p>
-
-                                            <div className="flex flex-col gap-5">
-                                                <div className="p-8 flex justify-center">
-                                                    <QRCode size={200} value={paymentRequest.sparkAddress || ""} />
-                                                </div>
-
-                                                <div className="w-full flex justify-between items-center bg-white border rounded-lg px-4 py-3">
-                                                    <span className="text-sm text-muted-foreground">
-                                                        {shortenAddress(paymentRequest.sparkAddress || "")}
-                                                    </span>
-
-                                                    <Copy
-                                                        className="w-4 h-4 cursor-pointer text-primary"
-                                                        onClick={() => copy(paymentRequest.sparkAddress)}
-                                                    />
-                                                </div>
-                                                {!paymentMade && availableWallet && btcAmount > 0 && <div className="flex flex-col gap-2 mt-2">
-                                                    <div className="flex items-center gap-5 mb-2">
-                                                        <Separator className="flex-1" />
-                                                        <span className="text-xs text-muted-foreground">or pay with wallet</span>
-                                                        <Separator className="flex-1" />
-                                                    </div>
-                                                    <div className="flex justify-center"><Button className="flex items-center gap-2 text-xs" onClick={payWithXVerse} disabled={sendLoading}>
-                                                        {sendLoading ? <Spinner /> : <span className="flex items-center gap-2"><img src={XVerseWhiteLogo} className="h-3 w-3" />Pay with XVerse</span>}
-                                                    </Button>
-                                                    </div>
-                                                    {sendError && <p className="text-primary text-xs text-center">An error occured: {sendError}</p>}
-                                                </div>}
-                                                {paymentMade &&
-                                                    <div className="flex flex-col gap-0 border-b border-t py-5">
-                                                        <p className="text-primary font-semibold">Your payment have been sent.</p>
-                                                        <p className="">It is currently being procesed to be completed once confirmed.</p>
-                                                        <p className="italic mt-5">Thanks for using our service.</p>
-                                                    </div>
-                                                }
-                                                <p className="text-xs text-muted-foreground text-center">
-                                                    No Spark wallet? Install{" "}
-                                                    <a href="https://xverse.app" target="_blank" className="text-primary hover:underline">Xverse</a>,{" "}
-                                                    <a href="https://blitzwalletapp.com/" target="_blank" className="text-primary hover:underline">Blitz</a>
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </TabsContent>}
-                                {paymentRequest.lightningInvoice != ''&& <TabsContent value="ln" className="p-5 bg-white backdrop-blur-sm rounded-xl ">
-                                    <div className="flex flex-col gap-2 ">
-                                        <div className="text-sm flex flex-col gap-5">
-                                            <div className="flex md:flex-row flex-col justify-between gap-1">
-                                                <p className="text-lg font-medium text-xl font-serif">Pay with Lightning</p>
-                                                <div className="flex gap-2">
-                                                    <span className="text-xs text-primary font-mono uppercase">
-                                                        FAST • PRIVATE
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            <p className="text-muted-foreground text-xs">Send exactly <span className="font-semibold">{new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.floor(btcAmount * 100_000_000))} sats</span> to complete this payment.</p>
-
-                                            <div className="flex flex-col gap-5">
-                                                <div className="p-8 flex justify-center">
-                                                    <QRCode size={200} value={paymentRequest.lightningInvoice || ""} />
-                                                </div>
-
-                                                <div className="w-full flex justify-between items-center bg-white border rounded-lg px-4 py-3">
-                                                    <span className="text-sm text-muted-foreground">
-                                                        {shortenAddress(paymentRequest.lightningInvoice || "")}
-                                                    </span>
-
-                                                    <Copy
-                                                        className="w-4 h-4 cursor-pointer text-primary"
-                                                        onClick={() => copy(paymentRequest.lightningInvoice)}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                </TabsContent>}
-                                {paymentRequest.sparkAddress != ''&& <TabsContent value="btc" className="p-5 bg-white backdrop-blur-sm rounded-xl ">
-                                    <div className="flex flex-col gap-2 ">
-                                        <div className="text-sm flex flex-col gap-5">
-                                            <div className="flex md:flex-row flex-col justify-between gap-1">
-                                                <p className="text-lg font-medium text-xl font-serif">Pay with Bitcoin</p>
-                                                <div className="flex gap-2">
-                                                    <span className="text-xs text-primary font-mono uppercase">
-                                                        Secured in ~10min • Final
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            <p className="text-muted-foreground text-xs">Send exactly <span className="font-semibold">{new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.floor(btcAmount * 100_000_000))} sats</span> to complete this payment.</p>
-
-                                            <div className="flex flex-col gap-5">
-                                                <div className="p-8 flex justify-center">
-                                                    <QRCode size={200} value={paymentRequest.sparkAddress || ""} />
-                                                </div>
-
-                                                <div className="w-full flex justify-between items-center bg-white border rounded-lg px-4 py-3">
-                                                    <span className="text-sm text-muted-foreground">
-                                                        {shortenAddress(paymentRequest.sparkAddress || "")}
-                                                    </span>
-
-                                                    <Copy
-                                                        className="w-4 h-4 cursor-pointer text-primary"
-                                                        onClick={() => copy(paymentRequest.sparkAddress)}
-                                                    />
-                                                </div>
-                                                {!paymentMade && availableWallet && btcAmount > 0 && <div className="flex flex-col gap-2 mt-2">
-                                                    <div className="flex items-center gap-5 mb-2">
-                                                        <Separator className="flex-1" />
-                                                        <span className="text-xs text-muted-foreground">or pay with wallet</span>
-                                                        <Separator className="flex-1" />
-                                                    </div>
-                                                    <div className="flex justify-center"><Button className="flex items-center gap-2 text-xs" onClick={payWithXVerse} disabled={sendLoading}>
-                                                        {sendLoading ? <Spinner /> : <span className="flex items-center gap-2"><img src={XVerseWhiteLogo} className="h-3 w-3" />Pay with XVerse</span>}
-                                                    </Button>
-                                                    </div>
-                                                    {sendError && <p className="text-primary text-xs text-center">An error occured: {sendError}</p>}
-                                                </div>}
-                                                {paymentMade && <div className="flex justify-center"><p className="text-sm text-center bg-primary/20 text-primary px-4 py-2 border-1 border-primary/40 rounded-sm shadow-lg  text-muted-foreground animate-pulse">Your payment is in process and will be completed once confirmed.</p></div>}
-                                                <p className="text-xs text-muted-foreground text-center">
-                                                    No Spark wallet? Install{" "}
-                                                    <a href="https://xverse.app" target="_blank" className="text-primary hover:underline">Xverse</a>,{" "}
-                                                    <a href="https://blitzwalletapp.com/" target="_blank" className="text-primary hover:underline">Blitz</a>
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </TabsContent>}
-                            </Tabs>
+                        {/* Invoice */}
+                        <div className="space-y-2">
+                            <div className="text-xs text-neutral-500">Scan or copy to pay the invoice</div>
+                            <div className="flex items-center justify-between bg-neutral-50 border rounded-lg px-3 py-2">
+                                <div className="text-xs font-mono text-neutral-700 truncate">
+                                    {lightningInvoice}
+                                </div>
+                                <button
+                                    onClick={() => copy(lightningInvoice)}
+                                    className="text-neutral-500 hover:text-black"
+                                >
+                                    {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
+                                </button>
+                            </div>
+                            {copied && (
+                                <div className="text-xs text-green-600">Copied to clipboard</div>
+                            )}
                         </div>
-                    </div >
-                </CardContent >
-                <CardFooter className="flex justify-center p-5 border-t">
-                    <div className='text-xs text-muted-foreground'>© {new Date().getFullYear()} HexQuarter. All rights reserved.</div>
-                </CardFooter>
-            </Card >
-        </div >
+
+                        {/* CTA */}
+                        <div className="flex gap-2">
+                            <Button className="flex-1" onClick={() => window.open("lightning:" + lightningInvoice)}>
+                                Pay with Lightning
+                            </Button>
+                            {maxRedeemableToken > 0 && !openedLoyalty &&
+                                <Button variant={'outline'} className="flex-1" onClick={() => setOpenLoyalty(true)}><GiftIcon className="text-primary" /> Save up to {paymentRequest.discountRate}%</Button>
+                            }
+                        </div>
+
+                        {openedLoyalty &&
+                            <LoyaltySection
+                                settings={settings}
+                                paymentRequest={paymentRequest}
+                                handleRedeem={((transaction, amount) => setRedeemDetails({ redeemAmount: amount, redeemTransaction: transaction }))}
+                                maxRedeemableToken={maxRedeemableToken}
+                                availableWallet={availableWallet}
+                            />}
+                    </CardContent>
+                    <CardFooter className="justify-center flex flex-col gap-5 pb-2" >
+                        <p className="text-xs text-neutral-400">Encounter any problem? <a href="mailto:bitlasso@hexquarter.com" target="_blank" className="underline">Contact us</a></p>
+                        <p className="text-xs text-neutral-400">By <a href="https://hexquarter.com?utm_source=bitlasso.xyz&utm_medium=payment_page" target="_blank" className="underline">HexQuarter</a> - All rights reserved © {new Date().getFullYear()}</p>
+                    </CardFooter>
+                </Card>
+            </div>
+        </div>
     )
 }
 

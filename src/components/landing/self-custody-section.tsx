@@ -5,7 +5,7 @@ import { KeyRound, ShieldCheck, Lock, Fingerprint } from "lucide-react"
 import { useInView } from "@/hooks/use-in-view"
 
 const facts = [
-  { icon: ShieldCheck, title: "Bitcoin-secured", text: "Assets are secured by Spark's network anchored into Bitcoin." },
+  { icon: ShieldCheck, title: "Bitcoin-secured", text: "Assets are secured by Bitcoin and Lightning's network security - while using Spark for ease of the liquidity." },
   { icon: KeyRound, title: "Your identity", text: "Powered by Nostr — you own your identity, not a platform" },
   { icon: Fingerprint, title: "Wallet-bound", text: "Once created, receipt tokens are associated to your wallet" },
   { icon: Lock, title: "Zero access", text: "We don't and we can't have access to your funds" },

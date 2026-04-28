@@ -156,9 +156,9 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
                 <Card>
                     {assets.map((asset) => (
                         <div key={asset.symbol} className={`flex items-center gap-2 hover:bg-primary/10 cursor-pointer p-2 rounded-sm ${selectedAsset?.symbol == asset.symbol ? 'bg-primary/10' : ''}`} onClick={() => setSelectedAsset(asset)}>
-                            <div className="p-2 rounded-full">
+                            <div className="">
                                 {asset.name == 'Bitcoin' && <div className="text-primary"><FaBitcoin className="h-6 w-6" /></div>}
-                                {asset.name != 'Bitcoin' && <div className="bg-black"><svg width="10" height="10" viewBox="0 0 68 65" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                {asset.name != 'Bitcoin' && <div className="bg-black p-2 rounded-full"><svg width="10" height="10" viewBox="0 0 68 65" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path fill-rule="evenodd" clip-rule="evenodd" d="M39.7159 25.248L40.8727 0.570312H26.4219L27.5787 25.2483L4.46555 16.5221L0 30.2656L23.8282 36.7915L8.38717 56.0763L20.0781 64.5703L33.6483 43.9245L47.2179 64.5695L58.9089 56.0755L43.4679 36.7909L67.2937 30.2657L62.8281 16.5221L39.7159 25.248ZM33.6472 33.6013L33.647 33.6007H33.6466L33.6462 33.6021L33.6472 33.6013Z" fill="#fff" />
                                 </svg></div>}
                             </div>

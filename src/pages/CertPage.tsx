@@ -1,7 +1,7 @@
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
 import { useEffect, useRef, useState } from "react"
-import { useParams } from "react-router"
+import { useParams, useSearchParams } from "react-router"
 
 
 import LogoPng from '../../public/logo.svg'
@@ -11,6 +11,7 @@ import { PaidRequest } from "@/components/payment/paid-request"
 
 export const CertPage: React.FC = () => {
     const { id } = useParams()
+    const [searchParams] = useSearchParams()
     const { settings } = useSettings()
     const [loading, setLoading] = useState(true)
     const [paymentRequest, setPaymentRequest] = useState<undefined | PaymentRequest>(undefined)
@@ -25,9 +26,9 @@ export const CertPage: React.FC = () => {
     useEffect(() => {
         if (!settings || ran.current) return;
         ran.current = true;
-
         if (id) {
-            fetchPaymentRequest(settings, id).then(async (paymentRequest) => {
+            const accessKey = searchParams.get('key')
+            fetchPaymentRequest(settings, id, accessKey || undefined).then(async (paymentRequest) => {
                 if (!paymentRequest.settleTx) {
                     setLoading(false)
 

@@ -6,7 +6,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { Edit } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { Payment } from "./payment-table"
+import type { PaymentRequestItem } from "./payment-table"
 
 export type ReceiptMetadataData = {
     transactionId: string,
@@ -16,7 +16,7 @@ export type ReceiptMetadataData = {
 }
 
 type Props = {
-    paymentRequests: Payment[]
+    paymentRequests: PaymentRequestItem[]
     metadata: ReceiptMetadataData,
     onSubmit: (data: ReceiptMetadataData) => Promise<void>
     onClose: () => void
