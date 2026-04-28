@@ -2,10 +2,9 @@ import { BTCAsset, type Asset } from "@/components/dashboard/send";
 import { bech32m } from "bech32";
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import type { BreezPayment, TokenBalanceMap, TokenMetadata, Wallet } from "./wallet";
+import type { TokenBalanceMap, TokenMetadata, Wallet } from "./wallet";
 import { toast } from "sonner";
 import type { Bech32mTokenIdentifier } from "@buildonspark/spark-sdk";
-import type { Settings } from "./api";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -26,41 +25,9 @@ export function sparkBech32ToHex(bech32Id: string) {
   return Buffer.from(data).toString('hex');
 }
 
-export const send = (settings: Settings, wallet: Wallet, asset: Asset, amount: number, recipient: string, method: "spark" | "lightning" | "bitcoin") => {
+export const send = (wallet: Wallet, asset: Asset, amount: number, recipient: string, method: "spark" | "lightning" | "bitcoin") => {
   return new Promise<string>(async (resolve, reject) => {
-    const normalizedRecipient = recipient == settings.address ? 'Bitlasso' : shortenAddress(recipient)
-
-    const onPaymentSent = (payment: BreezPayment) => {
-      if (payment.details?.type == 'token') {
-        toast.success(`Sent ${Number(payment.amount) / (10 ** payment.details.metadata.decimals)} ${asset.symbol} to ${normalizedRecipient}.`)
-      }
-      else {
-        toast.success(`Sent ${payment.amount} sats to ${normalizedRecipient}.`)
-      }
-      cleanup()
-      resolve(payment.id)
-    }
-
-    const onPaymentFailed = (payment: BreezPayment) => {
-      if (payment.details?.type == 'token') {
-        toast.error(`Failed to send ${Number(payment.amount) / (10 ** payment.details.metadata.decimals)} ${asset.symbol} to ${normalizedRecipient}.`)
-      }
-      else {
-        toast.error(`Failed to send ${amount} sats to ${normalizedRecipient}.`)
-      }
-      cleanup()
-      reject()
-    }
-
-    const cleanup = () => {
-      wallet.off('paymentSent', onPaymentSent)
-      wallet.off('paymentFailed', onPaymentFailed)
-    }
-
     try {
-      wallet.on('paymentSent', onPaymentSent)
-      wallet.on('paymentFailed', onPaymentFailed)
-
       switch (method) {
         case 'spark':
           if (asset.symbol == BTCAsset.symbol) {
@@ -94,7 +61,6 @@ export const send = (settings: Settings, wallet: Wallet, asset: Asset, amount: n
           break;
       }
     } catch (e) {
-      cleanup()
       const error = e as Error
 
       if (error.message.includes('insufficient funds')) {

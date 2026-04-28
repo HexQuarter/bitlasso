@@ -43,7 +43,7 @@ export type Bundle = {
 const purchaseBundle = async (settings: Settings, wallet: Wallet, price: number, bundle: Bundle) => {
     const amount = bundle.priceEach * bundle.quantity
     const sats = usdToBtc(amount, price) * 100_000_000
-    const paymentId = await send(settings, wallet, BTCAsset, sats, settings.address, 'spark')
+    const paymentId = await send(wallet, BTCAsset, sats, settings.address, 'spark')
     console.log(paymentId)
     const { transferId } = await purchaseCredits(bundle.id, wallet)
     console.log('Purchase tx id', transferId)
