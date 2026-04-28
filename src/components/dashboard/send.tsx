@@ -130,6 +130,10 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
             }
             try {
                 const recipientType = await wallet.parseRecipient(r)
+                if (selectedAsset?.name != 'Bitcoin' && recipientType != 'spark') {
+                    setRecipientError('A token transfer requires a Spark address')
+                    return
+                }
                 setMethod(recipientType)
                 setRecipient(r)
             }
@@ -169,7 +173,7 @@ export const Send: React.FC<Props> = ({ wallet, assets, price, onSend }) => {
                     {selectedAsset &&
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="address">Recipient address</Label>
-                            <Input required id="address" onChange={(e) => handleRecipientChange(e.target.value)} placeholder="Enter address" />
+                            <Input required id="address" onChange={(e) => handleRecipientChange(e.target.value)} placeholder={`${selectedAsset.name == 'Bitcoin' ? 'Enter address' : 'Enter Spark address'}`} />
                             {recipientError && <p className="text-primary text-xs">{recipientError}</p>}
                         </div>
                     }
