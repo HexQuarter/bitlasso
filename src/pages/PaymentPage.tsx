@@ -94,9 +94,9 @@ export const PaymentPage: React.FC = () => {
 
     return (
         <div className="bg-gray-50 min-h-screen">
-            <div className="w-1/2 mx-auto">
+            <div className="lg:w-1/2 mx-auto">
                 {loading &&
-                    <div className="flex h-screen">
+                    <div className="flex min-h-screen">
                         <div className='m-auto flex flex-col items-center gap-2'>
                             <img src={LogoPng} className='w-10' />
                             <div className='font-serif text-4xl tracking-tight text-foreground flex items-center'>
@@ -244,10 +244,10 @@ const PendingPaymentState: React.FC<{
                         <h1 className="text-lg text-muted-foreground">{paymentRequest.orgDetails ? (paymentRequest.orgDetails as OrgSettings).name : ''}</h1>
                     </CardHeader>
                     <CardContent className="p-6 space-y-6">
-                        <div className="space-y-1 text-center">
+                        {paymentRequest.description && paymentRequest.description != '' && <div className="space-y-1 text-center">
                             <div className="text-sm text-neutral-500">Description</div>
                             <div className="text-sm italic">{paymentRequest.description || ''}</div>
-                        </div>
+                        </div>}
                         <div className="space-y-1 text-center">
                             <div className="text-sm text-neutral-500">Amount</div>
                             <div className="text-3xl font-semibold">
