@@ -246,17 +246,9 @@ export const fetchPaymentsRequest = async (settings: Settings, wallet: Wallet): 
 
     const promiseResults = await Promise.allSettled(events.map(e => eventToPaymentRequest(settings, e)))
 
-    const values =  [
-        ...new Map(
-            promiseResults
-                .filter(p => p.status === 'fulfilled')
-                .map(p => [p.value.id, p.value])
-        ).values()
-    ]
-
-    console.log(values)
-
-    return values
+    return promiseResults
+        .filter(p => p.status === 'fulfilled')
+        .map(p => p.value)
 }
 
 export const fetchPaymentRequest = async (settings: Settings, id: string): Promise<PaymentRequest> => {
@@ -293,7 +285,6 @@ const eventToPaymentRequest = async (settings: Settings, event: NostrEvent) => {
             fetchRedeemDetails(settings, paymentRequest.id),
             fetchSettingsByPubkey(paymentRequest.pubkey)
         ])
-        console.log(paymentDetails)
         if (paymentDetails) {
             const { settlementMode, transaction } = paymentDetails
             paymentRequest.settleTx = transaction

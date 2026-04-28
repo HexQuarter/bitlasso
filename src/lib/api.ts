@@ -1,5 +1,6 @@
 import type { Bundle } from "@/components/dashboard/activate-payment";
 import type { BreezPayment, TokenBalanceMap, Wallet } from "./wallet";
+import { nip98 } from "nostr-tools";
 
 export const API_BASE_URL = import.meta.env.DEV ? "http://localhost:4000" : "https://api.bitlasso.xyz";
 
@@ -99,19 +100,19 @@ export const purchaseCredits = async (bundle: string, wallet: Wallet): Promise<{
 
 export const publishPaymentRequest = async (settings: Settings, wallet: Wallet, amount: number, discountRate: number, description?: string, tokenBalances?: TokenBalanceMap) => {
     try {
-        const pubkey = wallet.getNostrPublicKey()
-
         const paymentRequest = {
-            pubkey: pubkey,
             amount: amount,
             description: description || '',
             discountRate
         }
 
+        const authToken = await nip98.getToken(getApiUrl(`/payment-request`), 'POST', (e) => wallet.signNostrEvent(e), true, paymentRequest)
+
         let response = await fetch(getApiUrl(`/payment-request`), {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `${authToken}`
             },
             body: JSON.stringify(paymentRequest)
         })
@@ -147,7 +148,7 @@ export const publishPaymentRequest = async (settings: Settings, wallet: Wallet, 
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
-                                    'Authorization': `L402 ${macaroon}:${txHash}`
+                                    'Authorization': `${authToken}; L402 ${macaroon}:${txHash}`
                                 },
                                 body: JSON.stringify(paymentRequest)
                             })
@@ -179,7 +180,7 @@ export const publishPaymentRequest = async (settings: Settings, wallet: Wallet, 
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
-                                    'Authorization': `L402 ${macaroon}:${preimage}`
+                                    'Authorization': `${authToken}; L402 ${macaroon}:${preimage}`
                                 },
                                 body: JSON.stringify(paymentRequest)
                             })
