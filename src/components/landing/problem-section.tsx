@@ -7,13 +7,13 @@ const comparison = {
   traditional: [
     "Platforms take 1–2% of every transaction",
     "Funds are held custodially",
-    "Bitcoin treated like legacy payments",
+    "Bitcoin treated like legacy payments, not agentic and automation oriented",
     "Retention is an afterthought",
   ],
   bitlasso: [
     "Flat fee, not a tax on your growth",
     "Direct to your own wallet",
-    "Built for Bitcoin-native payment flow",
+    "Built for Lightning payment flow for API and AI agents (L402)",
     "Retention-first, ownership-first",
   ],
 }
@@ -35,7 +35,7 @@ export function ProblemSection() {
                 Accepting Bitcoin…<br /><span className="text-primary">until the tools get in the way</span>
               </h2>
               <p className="mt-6 max-w-xl text-pretty text-lg leading-[1.7] text-muted-foreground">
-                Lower fees, global payments, no chargebacks, aligned with the future. But every platform still takes custody, fees, and treats Bitcoin like legacy payments.
+                Lower fees, global payments, no chargebacks, aligned with the future (Agentic revolution). But every platform still takes custody, fees, and treats Bitcoin like legacy payments.
               </p>
             </div>
 

@@ -9,7 +9,6 @@ const included = [
   "Payment request page generation",
   "Client redemption flow: mint receipts & discount",
   "Self-custody funds settlement",
-  "Privacy-oriented: Metadata end to end encrypted",
   "Support L402 programmatic access for agent integration",
   "Lightning-network payment oriented for instant settlement"
 ]
