@@ -5,7 +5,7 @@ import { getPaymentPrice, type Settings } from "@/lib/api"
 import { formatTime } from "@/lib/utils"
 import { CheckCircle, Copy, GiftIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-import { useParams, useSearchParams } from "react-router"
+import { useParams } from "react-router"
 
 import { getProviders } from "sats-connect";
 import { toast } from "sonner"
@@ -23,7 +23,6 @@ type PaymentConfirmation = { transaction: string, settlementMode: string, btcAmo
 
 export const PaymentPage: React.FC = () => {
     const { id } = useParams()
-    const [searchParams] = useSearchParams()
     const { settings } = useSettings()
     const [loading, setLoading] = useState(true)
 
@@ -42,8 +41,7 @@ export const PaymentPage: React.FC = () => {
         ran.current = true;
 
         if (id && !paymentRequest) {
-            const accessKey = searchParams.get('key')
-            fetchPaymentRequest(settings, id, accessKey || undefined).then(async (paymentRequest) => {
+            fetchPaymentRequest(settings, id).then(async (paymentRequest) => {
                 setLoading(false)
                 setPaymentRequest(paymentRequest)
 
@@ -60,7 +58,7 @@ export const PaymentPage: React.FC = () => {
                 if (!paymentRequest.redeemAmount) {
                     subscribeRedeem(settings, paymentRequest.id, () => {
                         toast.success('Token have been redeemed. You can proceed to the payment with the discount applied')
-                        fetchPaymentRequest(settings, paymentRequest.id, accessKey || undefined).then(paymentRequest => {
+                        fetchPaymentRequest(settings, paymentRequest.id).then(paymentRequest => {
                             setPaymentRequest(paymentRequest)
                         })
                     })
@@ -242,11 +240,12 @@ const PendingPaymentState: React.FC<{
                 </div>
                 <Card className="rounded-2xl shadow-sm border bg-white p-0 gap-0 shadow-xs not-sm:rounded-none">
                     <CardHeader className='flex flex-col p-0! md:items-center justify-between border-b border-border/60 p-4!'>
-                        <span className="text-xs text-neutral-400">Requesting payment from</span>
+                        <span className="text-xs text-neutral-400">{paymentRequest.orgDetails?.name ? 'Requesting payment from' : 'Payment request'}</span>
                         <h1 className="text-lg text-muted-foreground">{paymentRequest.orgDetails ? (paymentRequest.orgDetails as OrgSettings).name : ''}</h1>
                     </CardHeader>
                     <CardContent className="p-6 space-y-6">
                         <div className="space-y-1 text-center">
+                            <div className="text-sm text-neutral-500">Description</div>
                             <div className="text-sm italic">{paymentRequest.description || ''}</div>
                         </div>
                         <div className="space-y-1 text-center">
@@ -255,9 +254,9 @@ const PendingPaymentState: React.FC<{
                                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount)}
                             </div>
                             <div className="flex justify-center items-center gap-2">
-                                <span className="text-xs text-neutral-400">Net: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount / (1 + (paymentRequest.orgDetails as OrgSettings).vat))}</span>
+                                <span className="text-xs text-neutral-400">Net: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount)}</span>
                                 <span className="text-xs text-neutral-400">{paymentRequest.orgDetails
-                                    ? (paymentRequest.orgDetails as OrgSettings).vat !== undefined ? ` VAT: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount - (paymentRequest.amount / (1 + (paymentRequest.orgDetails as OrgSettings).vat)))} (${(paymentRequest.orgDetails as OrgSettings).vat * 100}%)` : ''
+                                    ? (paymentRequest.orgDetails as OrgSettings).vat !== undefined ? ` VAT: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount * (1 + (paymentRequest.orgDetails as OrgSettings).vat / 100))} (${(paymentRequest.orgDetails as OrgSettings).vat}%)` : ''
                                     : ''
                                 }</span>
                             </div>

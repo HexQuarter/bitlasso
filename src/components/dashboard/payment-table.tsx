@@ -19,7 +19,6 @@ export type PaymentRequestItem = {
     redeemAmount?: number,
     redeemTx?: string,
     id: string
-    nonce: number
     settlementMode?: string
     sharingKey?: string
 }

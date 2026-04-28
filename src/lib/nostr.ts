@@ -1,4 +1,4 @@
-import { SimplePool, getPublicKey, type Filter, type Event, type NostrEvent, nip44 } from "nostr-tools"
+import { SimplePool, getPublicKey, type Filter, type Event, type NostrEvent } from "nostr-tools"
 
 import { HDKey } from "@scure/bip32";
 import { bech32 } from "bech32";
@@ -7,7 +7,6 @@ import { mnemonicToSeedSync } from "@scure/bip39";
 import type { Wallet } from "./wallet";
 import type { Receipt } from "@/components/dashboard/receipt-table";
 import type { Settings } from "./api";
-import { decryptData } from "./utils";
 
 const pool = new SimplePool({
     enablePing: true,
@@ -169,14 +168,49 @@ export type OrgSettings = {
     registrationNumber: string
 }
 
-export const registerOrganizationSettings = async (wallet: Wallet, orgSettings: OrgSettings) => {
-    const conversationKey = wallet.ecdhNostrKey(wallet.getNostrPublicKey())
-    if (!conversationKey) throw new Error("Conversation key undefined")
-    const encrypted = await nip44.encrypt(JSON.stringify(orgSettings), conversationKey)
+export type NotificationSettings = {
+    email?: string
+    npub?: string
+    webhook?: string
+}
 
+export type UserSettings = {
+    sparkIdentityKey?: string
+    redeemTokenId?: string,
+    notification?: NotificationSettings,
+    org?: OrgSettings
+}
+
+export const fetchSettings = async (wallet: Wallet): Promise<UserSettings | undefined> => {
+    const events = await fetchAndSync({
+        kinds: [30078],
+        authors: [wallet.getNostrPublicKey()],
+        "#d": ["bitlasso/settings"]
+    });
+    if (events.length > 0) {
+        const { content } = events[0]
+        return JSON.parse(content) as UserSettings
+    }
+    return undefined
+}
+
+export const fetchSettingsByPubkey = async (pubkey: string): Promise<UserSettings | undefined> => {
+    const events = await fetchAndSync({
+        kinds: [30078],
+        authors: [pubkey],
+        "#d": ["bitlasso/settings"]
+    });
+    if (events.length > 0) {
+        const { content } = events[0]
+        return JSON.parse(content) as UserSettings
+    }
+    return undefined
+}
+
+export const registerOrganizationSettings = async (wallet: Wallet, orgSettings: OrgSettings) => {
     const event = {
         kind: 30078,
-        content: encrypted,
+        content: JSON.stringify(orgSettings),
         pubkey: wallet.getNostrPublicKey(),
         created_at: Math.floor(Date.now() / 1000),
         tags: [["d", "bitlasso/org_settings"]],
@@ -187,33 +221,10 @@ export const registerOrganizationSettings = async (wallet: Wallet, orgSettings: 
     return signedEvent.id
 }
 
-export const fetchOrganizationSettings = async (wallet: Wallet): Promise<OrgSettings | undefined> => {
-    const events = await fetchAndSync({
-        kinds: [30078],
-        authors: [wallet.getNostrPublicKey()],
-        "#d": ["bitlasso/org_settings"]
-    });
-    if (events.length > 0) {
-        const { content } = events[0]
-        const conversationKey = wallet.ecdhNostrKey(wallet.getNostrPublicKey())
-        if (!conversationKey) throw new Error("Conversation key undefined")
-        const settings = JSON.parse(nip44.decrypt(content, conversationKey)) as OrgSettings
-        settings.vat = parseFloat(settings.vat.toString())
-        return settings
-    }
-    return undefined
-}
-
-export type NotificationSettings = {
-    email?: string
-    npub?: string
-    webhook?: string
-}
-
-export const registerNotifSettings = async (wallet: Wallet, notifSettings: NotificationSettings) => {
+export const registerSettings = async (wallet: Wallet, settings: UserSettings) => {
     const event = {
         kind: 30078,
-        content: JSON.stringify(notifSettings),
+        content: JSON.stringify(settings),
         pubkey: wallet.getNostrPublicKey(),
         created_at: Math.floor(Date.now() / 1000),
         tags: [["d", "bitlasso/settings"]],
@@ -222,19 +233,6 @@ export const registerNotifSettings = async (wallet: Wallet, notifSettings: Notif
     const signedEvent = wallet.signNostrEvent(event);
     await Promise.any(pool.publish(RELAYS, signedEvent))
     return signedEvent.id
-}
-
-export const getNotifSettings = async (wallet: Wallet): Promise<NotificationSettings | undefined> => {
-    const events = await fetchAndSync({
-        kinds: [30078],
-        authors: [wallet.getNostrPublicKey()],
-        "#d": ["bitlasso/settings"]
-    });
-    if (events.length > 0) {
-        const { content } = events[0]
-        return JSON.parse(content) as NotificationSettings
-    }
-    return undefined
 }
 
 export const fetchPaymentsRequest = async (settings: Settings, wallet: Wallet): Promise<PaymentRequest[]> => {
@@ -247,34 +245,21 @@ export const fetchPaymentsRequest = async (settings: Settings, wallet: Wallet): 
     if (events.length == 0) return []
 
     const promiseResults = await Promise.allSettled(events.map(e => eventToPaymentRequest(settings, e)))
-    const conversationKey = wallet.ecdhNostrKey(wallet.getNostrPublicKey())
-    if (!conversationKey) throw new Error("Conversation key undefined")
 
-    return await Promise.all(promiseResults
-        .filter(p => p.status == 'fulfilled')
-        .map(async (p) => {
-            try {
-                const request = p.value as PaymentRequest
-                if (!request.sharingKey) return request
-                const sharingKey = nip44.decrypt(request.sharingKey, conversationKey)
-                request.sharingKey = sharingKey
+    const values =  [
+        ...new Map(
+            promiseResults
+                .filter(p => p.status === 'fulfilled')
+                .map(p => [p.value.id, p.value])
+        ).values()
+    ]
 
-                const key = await crypto.subtle.importKey('raw', new Uint8Array(hexToBytes(sharingKey)), 'AES-GCM', false, ['decrypt'])
-                if (request.description && request.description != '') {
-                    const decryptedDescription = await decryptData(request.description, key)
-                    request.description = decryptedDescription
-                }
+    console.log(values)
 
-                return request
-            }
-            catch (e) {
-                console.log(e)
-                throw e
-            }
-        }))
+    return values
 }
 
-export const fetchPaymentRequest = async (settings: Settings, id: string, accessKey?: string): Promise<PaymentRequest> => {
+export const fetchPaymentRequest = async (settings: Settings, id: string): Promise<PaymentRequest> => {
     const events = await fetchAndSync({
         kinds: [30078],
         authors: [settings.publicKey],
@@ -285,48 +270,41 @@ export const fetchPaymentRequest = async (settings: Settings, id: string, access
         throw new Error('Payment not found')
     }
 
-    return eventToPaymentRequest(settings, events[0], accessKey)
+    return eventToPaymentRequest(settings, events[0])
 }
 
-const eventToPaymentRequest = async (settings: Settings, event: NostrEvent, accessKey?: string) => {
+const eventToPaymentRequest = async (settings: Settings, event: NostrEvent) => {
     try {
         const { created_at, content } = event
         let paymentRequest = JSON.parse(content) as PaymentRequest
         const pubkey = getTag(event.tags, "p") as string
 
-        const digest = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(paymentRequest.invoiceId))
+        const dTag = getTag(event.tags, 'd')
+        if (!dTag) {
+            throw new Error('Invalid event')
+        }
+        const id = dTag.split('/').at(-1) as string
 
-        paymentRequest.id = bytesToHex(new Uint8Array(digest))
+        paymentRequest.id = id
         paymentRequest.pubkey = pubkey
         paymentRequest.createdAt = new Date(created_at * 1000)
-        const [paymentDetails, redeemDetails] = await Promise.all([fetchPaymentDetails(settings, paymentRequest.id), fetchRedeemDetails(settings, paymentRequest.id)])
+        const [paymentDetails, redeemDetails, userSettings] = await Promise.all([
+            fetchPaymentDetails(settings, paymentRequest.id),
+            fetchRedeemDetails(settings, paymentRequest.id),
+            fetchSettingsByPubkey(paymentRequest.pubkey)
+        ])
+        console.log(paymentDetails)
         if (paymentDetails) {
             const { settlementMode, transaction } = paymentDetails
             paymentRequest.settleTx = transaction
             paymentRequest.settlementMode = settlementMode
         }
-
         if (redeemDetails) {
             paymentRequest.redeemAmount = redeemDetails.redeemAmount
             paymentRequest.redeemTx = redeemDetails.transaction
         }
-
-        if (accessKey && paymentRequest.sharingKey) {
-            try {
-                const key = await crypto.subtle.importKey('raw', new Uint8Array(hexToBytes(accessKey)), 'AES-GCM', false, ['decrypt'])
-                if (paymentRequest.description && paymentRequest.description != '') {
-                    const decryptedDescription = await decryptData(paymentRequest.description, key)
-                    paymentRequest.description = decryptedDescription
-                }
-
-                if (paymentRequest.orgDetails && paymentRequest.orgDetails != '') {
-                    const decryptedOrgDetails = await decryptData(paymentRequest.orgDetails as string, key)
-                    paymentRequest.orgDetails = JSON.parse(decryptedOrgDetails) as OrgSettings
-                }
-            }
-            catch (e) {
-                console.log(e)
-            }
+        if (userSettings) {
+            paymentRequest.orgDetails = userSettings.org
         }
 
         return paymentRequest
@@ -384,8 +362,7 @@ export type PaymentRequest = {
     redeemTx?: string
     nonce: number
     settlementMode: "spark" | "btc"
-    sharingKey?: string
-    orgDetails?: string | OrgSettings
+    orgDetails?: OrgSettings
     invoiceId: string
 }
 

@@ -1,9 +1,5 @@
 import type { Bundle } from "@/components/dashboard/activate-payment";
 import type { BreezPayment, TokenBalanceMap, Wallet } from "./wallet";
-import { fetchOrganizationSettings } from "./nostr";
-import { nip44 } from "nostr-tools";
-import { bytesToHex } from "nostr-tools/utils";
-import { encryptData } from "./utils";
 
 export const API_BASE_URL = import.meta.env.DEV ? "http://localhost:4000" : "https://api.bitlasso.xyz";
 
@@ -101,46 +97,15 @@ export const purchaseCredits = async (bundle: string, wallet: Wallet): Promise<{
     return await response.json()
 }
 
-export const publishPaymentRequest = async (settings: Settings, wallet: Wallet, nonce: number, amount: number, tokenId: string, discountRate: number, description?: string, tokenBalances?: TokenBalanceMap) => {
+export const publishPaymentRequest = async (settings: Settings, wallet: Wallet, amount: number, discountRate: number, description?: string, tokenBalances?: TokenBalanceMap) => {
     try {
         const pubkey = wallet.getNostrPublicKey()
-        const sharingKey = await window.crypto.subtle.generateKey(
-            {
-                name: "AES-GCM",
-                length: 256 // Can be 128, 192, or 256
-            },
-            true, // Set to true if you need to export the key later
-            ["encrypt", "decrypt"] // Key usages
-        );
-
-        const conversationKey = wallet.ecdhNostrKey(pubkey)
-        if (!conversationKey) {
-            throw new Error("Not able to get conversation key")
-        }
-        const exportedKey = await window.crypto.subtle.exportKey("raw", sharingKey);
-        const encryptedSharingKey = nip44.encrypt(bytesToHex(new Uint8Array(exportedKey)), conversationKey)
-
-        const orgSettings = await fetchOrganizationSettings(wallet)
-        let encryptedOrgDetails: string | undefined = undefined
-        if (orgSettings) {
-            encryptedOrgDetails = await encryptData(new TextEncoder().encode(JSON.stringify(orgSettings)).buffer, sharingKey)
-        }
-
-        let encryptedDescription: string | undefined = undefined
-        if (description && description != '') {
-            encryptedDescription = await encryptData(new TextEncoder().encode(description).buffer, sharingKey)
-        }
 
         const paymentRequest = {
-            userId: pubkey,
-            pubkey: await wallet.getIdentityPubkey(),
-            nonce,
-            amount: amount * (1 + (orgSettings?.vat || 0)),
-            description: encryptedDescription || '',
-            discountRate,
-            tokenId,
-            orgDetails: encryptedOrgDetails,
-            sharingKey: encryptedSharingKey
+            pubkey: pubkey,
+            amount: amount,
+            description: description || '',
+            discountRate
         }
 
         let response = await fetch(getApiUrl(`/payment-request`), {

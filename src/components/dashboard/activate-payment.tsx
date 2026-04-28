@@ -12,8 +12,7 @@ import { BTCAsset } from "./send"
 const included = [
     "Payment page generation",
     "Client redemption flow",
-    "End to end encrypted",
-    "Lightning oriented"
+    "Instant settlement with Lightning"
 ]
 
 const USD_FEE = 1

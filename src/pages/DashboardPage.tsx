@@ -19,7 +19,7 @@ import { AlertTriangleIcon, Coins, ExternalLink, FileText, MoreHorizontal, Picka
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { RevenueChart } from "@/components/dashboard/revenue-chart"
-import { fetchOrganizationSettings, fetchPaymentsRequest, getNotifSettings, listReceipts, publishReceiptMetadata, subscribePayment, subscribeRedeem, type OrgSettings } from "@/lib/nostr"
+import { fetchSettings, fetchPaymentsRequest, listReceipts, publishReceiptMetadata, subscribePayment, subscribeRedeem, type OrgSettings, registerSettings } from "@/lib/nostr"
 import { Spinner } from "@/components/ui/spinner"
 import { publishPaymentRequest, type Settings } from "@/lib/api"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -59,16 +59,12 @@ export const DashboardPage = () => {
         if (!wallet || initOnce.current) return
 
         void (async () => {
-            const notifSettings = await getNotifSettings(wallet)
-            if (!notifSettings || (notifSettings.email == undefined && notifSettings.npub == undefined)) {
+            const userSettings = await fetchSettings(wallet)
+            if (!userSettings?.notification || (userSettings.notification.email == undefined && userSettings.notification.npub == undefined)) {
                 setNotifSettingAlert(true)
             }
-        })()
-
-        void (async () => {
-            const orgSettings = await fetchOrganizationSettings(wallet)
-            if (orgSettings) {
-                setOrgSettings(orgSettings)
+            if (userSettings?.org) {
+                setOrgSettings(userSettings?.org)
             }
         })()
 
@@ -97,7 +93,6 @@ export const DashboardPage = () => {
                 toast.success(`Received payment of ${Number(payment.amount)} sats`)
                 setSatsBalance((prev) => prev + payment.amount)
             }
-            await refreshBalance()
             setIsSyncing(false)
         }
 
@@ -114,12 +109,24 @@ export const DashboardPage = () => {
             await refreshBalance()
         }
 
+        wallet.off('synced', onSynced)
+        wallet.off('paymentReceived', onPaymentReceived)
+        wallet.off('paymentSent', onPaymentSent)
+        wallet.off('paymentFailed', onPaymentReceived)
+
         wallet.on('synced', onSynced)
         wallet.on('paymentPending', onPaymentPending)
         wallet.on('paymentReceived', onPaymentReceived)
         wallet.on('paymentSent', onPaymentSent)
         wallet.on('paymentFailed', onPaymentFailed)
         initOnce.current = true
+
+        return () => {
+            wallet.off('synced', onSynced)
+            wallet.off('paymentReceived', onPaymentReceived)
+            wallet.off('paymentSent', onPaymentSent)
+            wallet.off('paymentFailed', onPaymentReceived)
+        }
     }, [wallet])
 
     const currency = localStorage.getItem('BITLASSO_CURRENCY') || 'USD'
@@ -139,40 +146,6 @@ export const DashboardPage = () => {
             setIssuanceStats(stats)
         }
     }
-
-    // const attemptClaim = async (wallet: Wallet, nonce: number, attempt = 0) => {
-    //     if (attempt > 5) {
-    //         return
-    //     }
-    //     try {
-    //         console.log("Attempt claim", nonce)
-    //         await claimBalance(wallet, nonce)
-    //     } catch (err: any) {
-    //         console.log(`Claim attempt ${attempt} for nonce ${nonce} failed:`, err.message)
-    //         setTimeout(() => attemptClaim(wallet, nonce, attempt + 1), 2000)
-    //     }
-    // }
-
-    // const claimBalance = async (wallet: Wallet, nonce: number) => {
-    //     const requestSdk = await wallet.withAccountNumber(nonce)
-    //     try {
-    //         const unclaimedBitcoinDeposits = await requestSdk.listUnclaimDeposits()
-
-    //         await Promise.all(unclaimedBitcoinDeposits.map(d => requestSdk.claimDeposit(d.txid, d.vout)))
-
-    //         const balance = await requestSdk.getBalance(true)
-    //         const satsBalance = Number(balance.balance)
-
-    //         if (satsBalance > 0) {
-    //             const sparkAddress = await wallet.getSparkAddress()
-    //             console.log('claiming from sub account', nonce, satsBalance)
-    //             await requestSdk.sendSparkPayment(sparkAddress, satsBalance)
-    //         }
-    //     }
-    //     finally {
-    //         await requestSdk.disconnect()
-    //     }
-    // }
 
     const fetchData = async (wallet: Wallet) => {
         try {
@@ -231,11 +204,6 @@ export const DashboardPage = () => {
     const refreshPaymentRequests = async () => {
         if (!wallet || !settings) return []
         const paymentRequests = await fetchPaymentsRequest(settings, wallet)
-        if (paymentRequests.length > 0) {
-            const maxNonce = Math.max(...paymentRequests.map(p => p.nonce))
-            localStorage.setItem("BITLASSO_PAYMENT_NONCE", maxNonce.toString())
-        }
-
         setPaymentRequests(paymentRequests)
 
         void (() => {
@@ -249,10 +217,6 @@ export const DashboardPage = () => {
                                 : p
                         )
                     );
-
-
-                    // Claim immediately on settlement event
-                    // await attemptClaim(wallet, payment.nonce)
                 })
 
                 subscribeRedeem(settings as Settings, payment.id, (redeemAmount, redeemTx) => {
@@ -284,11 +248,17 @@ export const DashboardPage = () => {
         try {
             const { tokenId } = await wallet.createToken(name, symbol, 0n, 1, false)
             console.log('Token created with ID:', tokenId)
-            void (() => posthog?.capture('loyalty_token_created', { token_name: name, token_symbol: symbol }))()
+
+            const settings = await fetchSettings(wallet)
+            if (settings) {
+                settings.redeemTokenId = tokenId
+                await registerSettings(wallet, settings)
+            }
 
             const metadata = await wallet.getTokenMetadata()
             setTokenMetadata(metadata)
             setIssuanceStats({ mints: 0, burns: 0, circulating: 0, transfers: 0 })
+            void (() => posthog?.capture('loyalty_token_created', { token_name: name, token_symbol: symbol }))()
         }
         catch (e) {
             const error = e as Error
@@ -346,14 +316,7 @@ export const DashboardPage = () => {
             return
         }
 
-        const currentMax = Math.max(
-            Number(localStorage.getItem('BITLASSO_PAYMENT_NONCE') || '1'),
-            ...paymentRequests.map(p => p.nonce) // use in-memory state as source of truth
-        )
-        const nonce = currentMax + 1
-
-        await publishPaymentRequest(settings, wallet, nonce, data.amount, tokenMetadata.identifier, data.discountRate, data.description, tokenBalances)
-        localStorage.setItem('BITLASSO_PAYMENT_NONCE', nonce.toString())
+        await publishPaymentRequest(settings, wallet, data.amount, data.discountRate, data.description, tokenBalances)
 
         await refreshPaymentRequests()
         void (() => posthog?.capture('payment_request_created', {
@@ -575,8 +538,8 @@ export const DashboardPage = () => {
                                 onSend={handleSend}
                                 payments={walletHistory}
                                 wallet={wallet}
-                                walletHistoryLoading={walletHistoryLoading} 
-                                />}
+                                walletHistoryLoading={walletHistoryLoading}
+                            />}
 
                     </div>
                 </div>
@@ -630,7 +593,7 @@ export const DashboardPage = () => {
                                 <p className="border-primary/40 flex gap-2 font-serif font-light text-2xl">Payment requests</p>
                                 {paymentRequestLoading && <Skeleton className="h-10 w-40" />}
                                 {!paymentRequestLoading && settings && <CardAction className='w-full lg:w-auto'>
-                                    {satsBalance > 0n && <PaymentRequestForm wallet={wallet} settings={settings} onSubmit={handlePaymentRequest} price={price} creditBalance={creditBalance} satsBalance={Number(satsBalance)} onPurchaseCredits={handlePurchaseCredits} />}
+                                    {satsBalance > 0n && <PaymentRequestForm settings={settings} orgSettings={orgSettings} onSubmit={handlePaymentRequest} price={price} creditBalance={creditBalance} satsBalance={Number(satsBalance)} onPurchaseCredits={handlePurchaseCredits} />}
                                     {satsBalance == 0n && <Button className="flex gap-2 has-[>svg]:pr-5 bg-primary hover:bg-black w-full lg:w-auto" disabled><Plus className="h-4 w-4" />New payment request</Button>}
                                 </CardAction>}
                             </div>
@@ -656,14 +619,13 @@ export const DashboardPage = () => {
                                 <PaymentTable
                                     data={paymentRequests.map(r => ({
                                         createdAt: r.createdAt,
-                                        amount: r.amount / (1 + (orgSettings ? orgSettings.vat : 0)),
+                                        amount: r.amount,
                                         description: r.description,
                                         settleTx: r.settleTx,
                                         discountRate: r.discountRate,
                                         id: r.id,
                                         redeemAmount: r.redeemAmount,
                                         redeemTx: r.redeemTx,
-                                        nonce: r.nonce,
                                         settlementMode: r.settlementMode,
                                         sharingKey: r.sharingKey
                                     }))}

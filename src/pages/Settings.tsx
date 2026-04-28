@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { usePostHog } from "@posthog/react"
 
-import { fetchOrganizationSettings, getNotifSettings, registerNotifSettings, type NotificationSettings, type OrgSettings, registerOrganizationSettings } from "@/lib/nostr"
+import { fetchSettings, registerSettings, type NotificationSettings, type OrgSettings, type UserSettings } from "@/lib/nostr"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { IconNotification } from "@tabler/icons-react"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -32,7 +32,7 @@ export const SettingsPage = () => {
     const [initializing, setInitializing] = useState(true)
     const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({ email: '', npub: '', webhook: '' })
     const [mnemonic, setMnemonic] = useState<string[]>([])
-    const [saveLoading, setSaveLoading] = useState(false)
+    const [saveNotifLoading, setSaveNotifLoading] = useState(false)
     const [hasSecuredMnemonic, setHashSecureMnemonic] = useState(localStorage.getItem('BITLASSO_SECURED_MNEMONIC') || 'false')
     const [snippet, setSnippet] = useState('')
 
@@ -43,27 +43,47 @@ export const SettingsPage = () => {
         if (!wallet) return
 
         const fetchData = async () => {
-            const org = await fetchOrganizationSettings(wallet)
-            if (org) {
-                setOrgSettings(org)
+            let settings = await fetchSettings(wallet)
+            if (settings?.notification) {
+                setNotificationSettings(settings.notification)
+            }
+            if (settings?.org) {
+                setOrgSettings(settings.org)
             }
 
-            const notif = await getNotifSettings(wallet)
-            if (notif) {
-                setNotificationSettings(notif)
+            if (!settings) {
+                settings = { sparkIdentityKey: await wallet.getIdentityPubkey() } as UserSettings
+                try {
+                    const tokenMetadata = await wallet.getTokenMetadata()
+                    if (tokenMetadata) {
+                        const identifier = tokenMetadata?.identifier
+                        settings.redeemTokenId = identifier
+                    }
+                }
+                catch (_e) { }
             }
+            if (!settings.sparkIdentityKey) {
+                settings.sparkIdentityKey = await wallet.getIdentityPubkey()
+            }
+            if (!settings.redeemTokenId) {
+                try {
+                    const tokenMetadata = await wallet.getTokenMetadata()
+                    if (tokenMetadata) {
+                        const identifier = tokenMetadata?.identifier
+                        settings.redeemTokenId = identifier
+                    }
+                }
+                catch (_e) { }
+            }
+            await registerSettings(wallet, settings)
 
-            const identityPubkey = await wallet.getIdentityPubkey()
             setInitializing(false)
 
             if (wallet) {
-                const tokenMetadata = await wallet?.getTokenMetadata()
                 setSnippet(`curl -X POST ${getApiUrl('/payment-request')} \\
   -H "Content-Type: application/json" \\
-  -d '{
-    "userId": "${wallet?.getNostrPublicKey()}", 
-    "pubkey": "${identityPubkey}",
-    "tokenId": "${tokenMetadata?.identifier}",
+  -d     '{
+    "pubkey": "${wallet?.getNostrPublicKey()}", 
     "amount": 1000,
     "description": "Payment for services"
   }'`)
@@ -76,7 +96,16 @@ export const SettingsPage = () => {
     const handleSaveOrgSettings = async () => {
         if (!wallet) return
         setOrgSettingsSaveLoading(true)
-        await registerOrganizationSettings(wallet, orgSettings)
+
+        let settings = await fetchSettings(wallet)
+        if (!settings) {
+            settings = { org: orgSettings } as UserSettings
+        }
+        else {
+            settings.org = orgSettings
+        }
+
+        await registerSettings(wallet, settings)
         void (() => posthog?.capture('organization_settings_saved', {}))()
 
         setTimeout(() => {
@@ -85,17 +114,24 @@ export const SettingsPage = () => {
         }, 1000)
     }
 
-    const handleSave = async () => {
+    const handleSaveNotifSettings = async () => {
         if (!wallet) return
-        setSaveLoading(true)
-        await registerNotifSettings(wallet, notificationSettings)
-        void (() => posthog?.capture('notification_settings_saved', {
-            has_email: !!(notificationSettings.email && notificationSettings.email !== ''),
-            has_npub: !!(notificationSettings.npub && notificationSettings.npub !== ''),
-        }))()
+        setSaveNotifLoading(true)
+
+        let settings = await fetchSettings(wallet)
+        if (!settings) {
+            settings = { notification: notificationSettings } as UserSettings
+        }
+        else {
+            settings.notification = notificationSettings
+        }
+
+        await registerSettings(wallet, settings)
+
+        void (() => posthog?.capture('notification_settings_saved', {}))()
 
         setTimeout(() => {
-            setSaveLoading(false)
+            setSaveNotifLoading(false)
             toast.success('Your notification settings have been saved')
         }, 1000)
     }
@@ -300,10 +336,10 @@ export const SettingsPage = () => {
                                                 <Button
                                                     className={`text-sm gap-2 justify-start group px-4 ${nostrExtension ? 'w-1/2' : ''}`}
                                                     variant='default'
-                                                    onClick={handleSave} disabled={saveLoading}>
+                                                    onClick={handleSaveNotifSettings} disabled={saveNotifLoading}>
                                                     <div className="flex gap-2 justify-center items-center">
                                                         <SaveAll />
-                                                        <p className="flex items-center gap-2">Save {saveLoading && <Spinner />}</p>
+                                                        <p className="flex items-center gap-2">Save {saveNotifLoading && <Spinner />}</p>
                                                     </div>
                                                 </Button>
                                                 {nostrExtension && <Button
@@ -328,25 +364,34 @@ export const SettingsPage = () => {
                                     </div>
                                 </CardHeader>
                                 <CardContent className="flex flex-col gap-5">
-                                    <div className="flex flex-col gap-2 mt-4">
-                                        <Label className="text-xs text-muted-foreground font-mono">Snippet to create payment requests programmatically</Label>
-                                        <div className="relative group">
-                                            <pre className="p-3 rounded-md bg-zinc-950 text-zinc-300 text-[10px] overflow-x-auto font-mono border border-zinc-800">
-                                                {snippet}
-                                            </pre>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="absolute border text-white top-2 right-2  h-6 w-6 p-4"
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(snippet)
-                                                    toast.success('CURL snippet copied')
-                                                }}
-                                            >
-                                                <Copy className="h-3 w-2" />
-                                            </Button>
+                                    {initializing &&
+                                        <>
+                                            <div className="flex flex-col gap-2">
+                                                <Skeleton className="h-50 w-full" />
+                                            </div>
+                                        </>
+                                    }
+                                    {!initializing &&
+                                        <div className="flex flex-col gap-2 mt-4">
+                                            <Label className="text-xs text-muted-foreground font-mono">Snippet to create payment requests programmatically</Label>
+                                            <div className="relative group">
+                                                <pre className="p-3 rounded-md bg-zinc-950 text-zinc-300 text-[10px] overflow-x-auto font-mono border border-zinc-800">
+                                                    {snippet}
+                                                </pre>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="absolute border text-white top-2 right-2  h-6 w-6 p-4"
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(snippet)
+                                                        toast.success('CURL snippet copied')
+                                                    }}
+                                                >
+                                                    <Copy className="h-3 w-2" />
+                                                </Button>
+                                            </div>
                                         </div>
-                                    </div>
+                                    }
                                 </CardContent>
                             </Card>
                         </div>

@@ -9,6 +9,7 @@ import { ArrowRight } from "lucide-react";
 import { usePostHog } from "@posthog/react";
 
 import LogoPng from '../../public/logo.svg'
+import { fetchSettings, registerSettings } from "@/lib/nostr";
 
 export const LoginPage = () => {
     const { storeWallet } = useWallet()
@@ -26,6 +27,14 @@ export const LoginPage = () => {
         const sparkAddress = await wallet.getSparkAddress()
         posthog?.identify(sparkAddress)
         void(() => posthog?.capture('wallet_connected'))()
+
+        const settings = await fetchSettings(wallet)
+        if (!settings) {
+            console.log('initializing wallet settings')
+            await registerSettings(wallet, {
+                sparkIdentityKey: await wallet.getIdentityPubkey()
+            })
+        }
 
         setLoading(false)
         navigate('/app/dashboard', { replace: true })

@@ -12,13 +12,12 @@ import {
 import { Input } from "@/components/ui/input"
 import { Coins, Plus } from "lucide-react"
 import type React from "react"
-import { useEffect, useState } from "react"
+import { useMemo, useState } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActivePayment } from "./activate-payment"
 import type { Settings } from "@/lib/api"
-import { fetchOrganizationSettings } from "@/lib/nostr"
-import type { Wallet } from "@/lib/wallet"
+import type { OrgSettings } from "@/lib/nostr"
 
 export type PaymentRequestData = {
     description?: string
@@ -29,16 +28,16 @@ export type PaymentRequestData = {
 }
 
 type Props = {
-    wallet: Wallet
     settings: Settings
     onSubmit: (data: PaymentRequestData) => Promise<void>
     onPurchaseCredits: (amount: number) => Promise<void>
     price: number
     creditBalance: number
     satsBalance: number
+    orgSettings?: OrgSettings
 }
 
-export const PaymentRequestForm: React.FC<Props> = ({ wallet, onSubmit, price, settings, creditBalance, satsBalance, onPurchaseCredits }) => {
+export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price, settings, creditBalance, satsBalance, onPurchaseCredits, orgSettings }) => {
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
 
@@ -46,7 +45,8 @@ export const PaymentRequestForm: React.FC<Props> = ({ wallet, onSubmit, price, s
     const [description, setDescription] = useState("")
     const [ready, setReady] = useState(false)
     const [discountRate, setDiscountRate] = useState(10)
-    const [vatRate, setVatRate] = useState(0)
+ 
+    const vatRate = useMemo(() => orgSettings?.vat || 0, [orgSettings])
 
     const handleChangeAmount = (val: string) => {
         const amount = parseFloat(val)
@@ -94,12 +94,6 @@ export const PaymentRequestForm: React.FC<Props> = ({ wallet, onSubmit, price, s
         setOpen(open)
     }
 
-    useEffect(() => {
-        fetchOrganizationSettings(wallet).then((orgSettings) => {
-            setVatRate(orgSettings?.vat || 0)
-        })
-    }, [wallet])
-
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild onClick={() => setOpen(true)} >
@@ -122,7 +116,7 @@ export const PaymentRequestForm: React.FC<Props> = ({ wallet, onSubmit, price, s
                             <Input required id="amount" type='number' inputMode="numeric" min='0' placeholder='0' onChange={(e) => handleChangeAmount(e.target.value)} value={amount} />
                         </CardContent>
                         <CardFooter className="flex flex-col gap-5 items-start">
-                            <p className="text-xs text-gray-400">Total amount (with VAT): {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount * (1 + vatRate))}</p>
+                            {vatRate > 0 && <p className="text-xs text-gray-400">Total amount (with VAT): {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount * (1 + (vatRate / 100)))}</p>}
                             <p className="text-xs text-gray-400">A BTC payment equivalent will be present and refreshed on the checkout page matching the most recent rate.</p>
                         </CardFooter>
                     </Card>
