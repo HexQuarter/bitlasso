@@ -59,13 +59,27 @@ export const purchaseCredits = async (bundle: string, wallet: Wallet): Promise<{
                 const invoice = invoiceMatch[1]
                 // Pay the invoice
                 const sendPromise = new Promise<BreezPayment>(async (resolve, reject) => {
-                    wallet.on('paymentSent', (payment: BreezPayment) => {
+                    const cleanup = () => {
+                        wallet.off('paymentSent', onPaymentSent)
+                        wallet.off('paymentFailed', onPaymentFailed)
+                    }
+
+                    const onPaymentSent = (payment: BreezPayment) => {
+                        cleanup()
                         resolve(payment)
-                    })
-                    wallet.on('paymentFailed', (error) => {
+                    }
+                    const onPaymentFailed = (error: any) => {
+                        cleanup()
                         reject(error)
+                    }
+
+                    wallet.on('paymentSent', onPaymentSent)
+                    wallet.on('paymentFailed', onPaymentFailed)
+
+                    await wallet.sendLightningPayment(invoice).catch((e) => {
+                        cleanup()
+                        reject(e)
                     })
-                    await wallet.sendLightningPayment(invoice)
                 })
 
                 const payment = await sendPromise
@@ -131,13 +145,27 @@ export const publishPaymentRequest = async (settings: Settings, wallet: Wallet, 
                     const tokenInvoice = tokenInvoiceMatch[1]
                     // Pay the invoice
                     const sendPromise = new Promise<BreezPayment>(async (resolve, reject) => {
-                        wallet.on('paymentSent', (payment: BreezPayment) => {
+                        const cleanup = () => {
+                            wallet.off('paymentSent', onPaymentSent)
+                            wallet.off('paymentFailed', onPaymentFailed)
+                        }
+
+                        const onPaymentSent = (payment: BreezPayment) => {
+                            cleanup()
                             resolve(payment)
-                        })
-                        wallet.on('paymentFailed', (error) => {
+                        }
+                        const onPaymentFailed = (error: any) => {
+                            cleanup()
                             reject(error)
+                        }
+
+                        wallet.on('paymentSent', onPaymentSent)
+                        wallet.on('paymentFailed', onPaymentFailed)
+
+                        await wallet.paySparkInvoice(tokenInvoice).catch((e) => {
+                            cleanup()
+                            reject(e)
                         })
-                        await wallet.paySparkInvoice(tokenInvoice)
                     })
                     const payment = await sendPromise
                     if (payment && payment.details?.type == 'token') {
@@ -161,17 +189,32 @@ export const publishPaymentRequest = async (settings: Settings, wallet: Wallet, 
 
                     // Pay the invoice
                     const sendPromise = new Promise<BreezPayment>(async (resolve, reject) => {
-                        wallet.on('paymentSent', (payment: BreezPayment) => {
+                        const cleanup = () => {
+                            wallet.off('paymentSent', onPaymentSent)
+                            wallet.off('paymentFailed', onPaymentFailed)
+                        }
+
+                        const onPaymentSent = (payment: BreezPayment) => {
+                            cleanup()
                             resolve(payment)
-                        })
-                        wallet.on('paymentFailed', (error) => {
+                        }
+                        const onPaymentFailed = (error: any) => {
+                            cleanup()
                             reject(error)
+                        }
+
+                        wallet.on('paymentSent', onPaymentSent)
+                        wallet.on('paymentFailed', onPaymentFailed)
+
+                        await wallet.sendLightningPayment(invoice).catch((e) => {
+                            cleanup()
+                            reject(e)
                         })
-                        await wallet.sendLightningPayment(invoice)
                     })
 
                     const payment = await sendPromise
 
+                    console.log(payment)
                     if (payment && payment.details?.type == 'lightning') {
                         const preimage = payment.details.htlcDetails.preimage
                         if (preimage) {

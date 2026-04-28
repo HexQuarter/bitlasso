@@ -82,6 +82,7 @@ export class TypedEventEmitter<Events extends EventMap> {
 
     emit<K extends keyof Events>(event: K, ...args: Parameters<Events[K]>): boolean {
         const listeners = this.events.get(event);
+        console.log(`[emit] ${String(event)} → ${listeners?.length ?? 0} listeners`)
         if (listeners) {
             listeners.forEach((listener) => listener(...args));
             return true;
@@ -152,6 +153,8 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
     private builderNewFn: () => Promise<SdkBuilder>;
     private nostrKeypair: NostrKeyPair | undefined;
 
+    private listenerId: string | undefined;
+
     constructor(builderNewFn: () => Promise<SdkBuilder>, sdk: BreezSdk, sparkWallet: SparkWallet) {
         super()
         this.builderNewFn = builderNewFn;
@@ -191,6 +194,23 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
 
         class JsEventListener {
             private deliveredEvents = new Set<string>(); // track delivered events
+            private readonly MAX_EVENTS = 100
+
+            private trackEvent(key: string): boolean {
+                if (this.deliveredEvents.has(key)) return false
+
+                // Evict oldest entry if at cap
+                if (this.deliveredEvents.size >= this.MAX_EVENTS) {
+                    const oldest = this.deliveredEvents.values().next().value
+                    if (oldest) {
+                        this.deliveredEvents.delete(oldest)
+                    }
+                }
+
+                this.deliveredEvents.add(key)
+                return true
+            }
+
 
             onEvent = async (event: SdkEvent) => {
                 console.log(event)
@@ -216,7 +236,7 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
                     case 'paymentSucceeded': {
                         // A payment completed successfully
                         const payment = event.payment
-                        if (this.deliveredEvents.has(`${payment.paymentType}:${payment.id}`)) return
+                        if (!this.trackEvent(`${payment.paymentType}:${payment.id}`)) return
 
                         if (payment.paymentType == 'receive') {
                             instance.emit('paymentReceived', payment)
@@ -224,25 +244,22 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
                         else {
                             instance.emit('paymentSent', payment)
                         }
-                        this.deliveredEvents.add(`${payment.paymentType}:${payment.id}`)
                         break
                     }
                     case 'paymentPending': {
                         // A payment is pending (waiting for confirmation)
                         const pendingPayment = event.payment
-                        if (this.deliveredEvents.has(`pending:${pendingPayment.id}`)) return
+                        if (!this.trackEvent(`pending:${pendingPayment.id}`)) return
 
                         instance.emit('paymentPending', pendingPayment)
-                        this.deliveredEvents.add(`pending:${pendingPayment.id}`)
                         break
                     }
                     case 'paymentFailed': {
                         // A payment failed
                         const failedPayment = event.payment
-                        if (this.deliveredEvents.has(`failed:${failedPayment.id}`)) return
+                        if (!this.trackEvent(`failed:${failedPayment.id}`)) return
 
                         instance.emit('paymentFailed', failedPayment)
-                        this.deliveredEvents.add(`failed:${failedPayment.id}`)
                         break
                     }
                     default: {
@@ -253,7 +270,7 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
             }
         }
 
-        await sdk.addEventListener(new JsEventListener())
+        instance.listenerId = await sdk.addEventListener(new JsEventListener())
 
         try {
             const unclaimedDeposits = await sdk.listUnclaimedDeposits({})
@@ -286,7 +303,7 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
         })
 
         const tokenBalances = new Map() as TokenBalanceMap
-        info.tokenBalances.forEach(async (tb, id) => {
+        info.tokenBalances.forEach((tb, id) => {
             tokenBalances.set(id, {
                 balance: BigInt(tb.balance),
                 tokenMetadata: {
@@ -776,6 +793,9 @@ export class BreezSparkWallet extends TypedEventEmitter<BreezEvent> implements W
     }
 
     async disconnect(): Promise<void> {
+        if (this.listenerId) {
+            await this.sdk.removeEventListener(this.listenerId)
+        }
         await this.sdk.disconnect()
     }
 

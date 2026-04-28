@@ -54,9 +54,99 @@ export const DashboardPage = () => {
     const [isSyncing, setIsSyncing] = useState(false)
     const [orgSettings, setOrgSettings] = useState<OrgSettings | undefined>(undefined)
 
-    const initOnce = useRef(false)
+    const listenersAttached = useRef(false)
+    const priceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
     useEffect(() => {
-        if (!wallet || initOnce.current) return
+        if (!wallet) return
+
+        // Only attach listeners once per wallet instance
+        if (!listenersAttached.current) {
+            const refreshBalance = async () => {
+                await updateBalance(wallet)
+
+                const payments = await wallet.listPayments()
+                setWalletHistory(payments)
+
+                // Use a callback form of setState to read current tokenMetadata
+                // instead of capturing stale closure value
+                setTokenMetadata((prev) => {
+                    if (prev) {
+                        void refreshIssuanceStats(wallet, prev)
+                    }
+                    return prev
+                })
+            }
+            const onPaymentPending = (payment: BreezPayment) => {
+                setIsSyncing(true)
+                if (payment.paymentType == 'receive') {
+                    toast.info(`Payment incoming. Waiting for confirmation...`)
+                }
+            }
+
+            const onPaymentSent = async (payment: BreezPayment) => {
+                if (payment.details?.type == 'token') {
+                    toast.success(`Sent ${Number(payment.amount) / (10 ** payment.details.metadata.decimals)} ${payment.details.metadata.ticker}.`)
+                }
+                else {
+                    toast.success(`Sent ${payment.amount} sats`)
+                }
+                setIsSyncing(true) // synced event will clear this + refresh balance
+                await updateBalance(wallet)
+                setIsSyncing(false)
+            }
+
+            const onPaymentReceived = async (payment: BreezPayment) => {
+                setIsSyncing(true)
+                if (payment.method != 'token') {
+                    toast.success(`Received payment of ${Number(payment.amount)} sats`)
+                }
+                await updateBalance(wallet)
+                setIsSyncing(false)
+            }
+
+            const onPaymentFailed = async (_payment: BreezPayment) => {
+                setIsSyncing(false)
+            }
+
+            const onSynced = async () => {
+                await refreshBalance()
+                setIsSyncing(false)
+            }
+
+            wallet.on('synced', onSynced)
+            wallet.on('paymentPending', onPaymentPending)
+            wallet.on('paymentReceived', onPaymentReceived)
+            wallet.on('paymentSent', onPaymentSent)
+            wallet.on('paymentFailed', onPaymentFailed)
+
+            listenersAttached.current = true
+
+            // Cleanup: remove listeners when wallet changes or component unmounts
+            return () => {
+                wallet.off('synced', onSynced)
+                wallet.off('paymentReceived', onPaymentReceived)
+                wallet.off('paymentSent', onPaymentSent)
+                wallet.off('paymentPending', onPaymentPending)
+                wallet.off('paymentFailed', onPaymentFailed)
+
+                listenersAttached.current = false
+
+                if (priceIntervalRef.current) {
+                    clearInterval(priceIntervalRef.current)
+                    priceIntervalRef.current = null
+                }
+            }
+        }
+
+    }, [wallet])
+
+    useEffect(() => {
+        if (!wallet) return
+
+        fetchData(wallet).then(priceInterval => {
+            priceIntervalRef.current = priceInterval
+        })
 
         void (async () => {
             const userSettings = await fetchSettings(wallet)
@@ -67,77 +157,14 @@ export const DashboardPage = () => {
                 setOrgSettings(userSettings?.org)
             }
         })()
-
-        fetchData(wallet)
-
-        const refreshBalance = async () => {
-            await updateBalance(wallet)
-
-            const payments = await wallet.listPayments()
-            setWalletHistory(payments)
-
-            if (tokenMetadata) {
-                refreshIssuanceStats(wallet, tokenMetadata)
-            }
-        }
-        const onPaymentPending = (payment: BreezPayment) => {
-            setIsSyncing(true)
-            if (payment.paymentType == 'receive') {
-                toast.info(`Payment incoming. Waiting for confirmation...`)
-            }
-        }
-
-        const onPaymentReceived = async (payment: BreezPayment) => {
-            setIsSyncing(true)
-            if (payment.method != 'token') {
-                toast.success(`Received payment of ${Number(payment.amount)} sats`)
-                setSatsBalance((prev) => prev + payment.amount)
-            }
-            setIsSyncing(false)
-        }
-
-        const onPaymentSent = async (_payment: BreezPayment) => {
-            await refreshBalance()
-            setIsSyncing(false)
-        }
-
-        const onPaymentFailed = async (_payment: BreezPayment) => {
-            setIsSyncing(false)
-        }
-
-        const onSynced = async () => {
-            await refreshBalance()
-        }
-
-        wallet.off('synced', onSynced)
-        wallet.off('paymentReceived', onPaymentReceived)
-        wallet.off('paymentSent', onPaymentSent)
-        wallet.off('paymentFailed', onPaymentReceived)
-
-        wallet.on('synced', onSynced)
-        wallet.on('paymentPending', onPaymentPending)
-        wallet.on('paymentReceived', onPaymentReceived)
-        wallet.on('paymentSent', onPaymentSent)
-        wallet.on('paymentFailed', onPaymentFailed)
-        initOnce.current = true
-
-        return () => {
-            wallet.off('synced', onSynced)
-            wallet.off('paymentReceived', onPaymentReceived)
-            wallet.off('paymentSent', onPaymentSent)
-            wallet.off('paymentFailed', onPaymentReceived)
-        }
     }, [wallet])
 
     const currency = localStorage.getItem('BITLASSO_CURRENCY') || 'USD'
 
     const updateBalance = async (wallet: Wallet) => {
-        const balance = await wallet.getBalance()
+        const balance = await wallet.getBalance(true)
         setSatsBalance(balance.balance)
-
-        if (balance.tokenBalances.size > 0) {
-            setTokenBalances(balance.tokenBalances)
-        }
+        setTokenBalances(balance.tokenBalances)
     }
 
     const refreshIssuanceStats = async (wallet: Wallet, metadata: TokenMetadata) => {
@@ -167,7 +194,6 @@ export const DashboardPage = () => {
                 wallet.getLightningAddress(),
             ])
             setAddresses({ btc, spark, ln })
-            setWalletLoading(false)
         })()
 
         void (async () => {
@@ -182,6 +208,7 @@ export const DashboardPage = () => {
             const payments = await wallet.listPayments()
             setWalletHistory(payments)
             setWalletHistoryLoading(false)
+            setWalletLoading(false)
         })()
 
         void (async () => {
@@ -192,13 +219,14 @@ export const DashboardPage = () => {
             }
         })()
 
-        setInterval(async () => {
+        const priceInterval = setInterval(async () => {
             const prices = await wallet.fetchPrices()
             const p = prices.find(p => p.currency.toUpperCase() == currency.toUpperCase())
-            if (p) {
-                setPrice(p.value)
-            }
+            if (p) setPrice(p.value)
         }, 60_000)
+
+        // Return it so it can be cleared
+        return priceInterval
     }
 
     const refreshPaymentRequests = async () => {
@@ -285,7 +313,7 @@ export const DashboardPage = () => {
 
         if (data.recipientAddress && data.recipientAddress != '') {
             const asset = { name: tokenMetadata.name, symbol: tokenMetadata.symbol, identifier: tokenMetadata.identifier } as Asset
-            const id = await send(settings, wallet, asset, data.mintableTokens, data.recipientAddress, 'spark')
+            const id = await send(wallet, asset, data.mintableTokens, data.recipientAddress, 'spark')
             console.log('Token transfered to recipient:', id)
         }
 
@@ -329,7 +357,7 @@ export const DashboardPage = () => {
 
     const handleSend = async (method: 'spark' | 'lightning' | 'bitcoin', asset: Asset, amount: number, recipient: string) => {
         if (!wallet || !settings) return
-        await send(settings, wallet, asset, amount, recipient, method)
+        await send(wallet, asset, amount, recipient, method)
     }
 
     const handleReceiptMetadataChange = async (data: ReceiptMetadataData) => {

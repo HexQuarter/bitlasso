@@ -1,5 +1,5 @@
 import { BreezSparkWallet, type Wallet } from '@/lib/wallet';
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import posthog from 'posthog-js';
 
@@ -22,7 +22,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const [wallet, setWallet] = useState<Wallet | null>(null);
     const [walletExists, setWalletExists] = useState(localStorage.getItem('BITLASSO_MNEMONIC') != null ? true : false)
 
+    // Store the instance ref so we never re-initialize if already connected
+    const walletRef = useRef<Wallet | null>(null)
+
     const loadWallet = async () => {
+        if (walletRef.current) {
+            return walletRef.current
+        }
+
         const mnemonic = localStorage.getItem('BITLASSO_MNEMONIC')
         if (mnemonic) {
             const wallet = await BreezSparkWallet.initialize(
@@ -30,11 +37,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 import.meta.env.VITE_BREEZ_API_KEY || ''
             );
 
+            walletRef.current = wallet
             setWallet(wallet);
             return wallet
         }
     }
-
 
     useEffect(() => {
         loadWallet()
@@ -53,12 +60,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         posthog.capture('wallet_disconnected')
         posthog.reset()
         localStorage.removeItem('BITLASSO_MNEMONIC')
+        walletRef.current = null
         setWallet(null)
         setWalletExists(false)
     };
 
     const storeWallet = async (mnemonic: string) => {
         localStorage.setItem('BITLASSO_MNEMONIC', mnemonic)
+        walletRef.current = null
         const wallet = await loadWallet()
         if (!wallet) throw new Error("Failed to load wallet after storing mnemonic")
         setWalletExists(true)
