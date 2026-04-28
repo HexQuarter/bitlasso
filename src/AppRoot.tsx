@@ -28,24 +28,22 @@ export const AppRoot = () => {
   }, [walletExists])
 
   useEffect(() => {
-    if (wallet) {
-      getStatus()
-        .then(async ({ sparkStatus }) => {
-          if (sparkStatus == 'operational') {
-            setErrorStatus(undefined)
-            setInitializing(false)
-          }
-          else {
-            setErrorStatus(`Spark status is not operational. Please retry in few moments. We are sorry for this inconvenience.`)
-          }
-        })
-        .catch(async (e) => {
-          console.log(e)
-          setErrorStatus('An error occured. Please retry in few moments. We are sorry for this inconvenience.')
-        })
-    }
+    getStatus()
+      .then(async ({ sparkStatus }) => {
+        if (sparkStatus == 'operational') {
+          setErrorStatus(undefined)
+          setInitializing(false)
+        }
+        else {
+          setErrorStatus(`Spark status is not operational. Please retry in few moments. We are sorry for this inconvenience.`)
+        }
+      })
+      .catch(async (e) => {
+        console.log(e)
+        setErrorStatus('An error occured. Please retry in few moments. We are sorry for this inconvenience.')
+      })
 
-  }, [wallet])
+  }, [])
 
   // show spinner while wallet check / effect is running
   if (((walletExists || wallet) && !connected)) {
