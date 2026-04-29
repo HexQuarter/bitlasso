@@ -1,35 +1,33 @@
-"use client"
-
 import { useRef } from "react"
 import { Shield, Globe, Clock, Lock } from "lucide-react"
 import { useInView } from "@/hooks/use-in-view"
 
 const reasons = [
   {
-    icon: Shield,
-    title: "Verifiable without a middleman",
-    description: "Bitcoin transactions are cryptographically signed and publicly verifiable. No trust required.",
+    icon: Clock,
+    title: "Subsecond settlement",
+    description: "Lightning Network handles payments in <2 seconds. Your workflows trigger immediately, not days later.",
   },
   {
     icon: Globe,
     title: "Works across borders",
-    description: "No processor restrictions, no currency conversion fees. Settle in sats from anywhere.",
+    description: "Open and programmable",
   },
   {
-    icon: Clock,
-    title: "Instant finality",
-    description: "Payments settle in seconds. No chargebacks, no holds, no waiting periods.",
+    icon: Shield,
+    title: "Verifiable onchain",
+    description: "Every transaction cryptographically signed. Build deterministic systems where the source of truth is immutable.",
   },
   {
     icon: Lock,
-    title: "Self-custodial by default",
-    description: "No platform holds funds or credits on behalf of merchants or clients. Ever.",
+    title: "Non-custodial guarantees",
+    description: "No platform holds your funds. Settlement is to your wallet directly. Your agents control the outcome.",
   },
 ]
 
 const comparison = {
-  traditional: ["Database-dependent", "Platform-locked", "Expires / devalues", "Opaque accounting"],
-  bitlasso: ["Cryptographically owned", "Fully portable", "Persistent value", "Decentralized by design"],
+  traditional: ["Multi-day settlement", "Proprietary APIs", "Centralized failures", "Expensive webhooks"],
+  bitlasso: ["<2 second settlement", "Open protocols (Nostr/Lightning)", "Decentralized & redundant", "Programmable by design"],
 }
 
 export function WhyBitcoinSection() {
@@ -43,7 +41,7 @@ export function WhyBitcoinSection() {
         <div className={`mb-24 transition-all duration-1000 ${isInView ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}>
           <p className="mb-5 font-mono text-[11px] font-medium tracking-[0.2em] text-primary uppercase">Why Bitcoin</p>
           <h2 className="max-w-4xl font-serif text-[clamp(2rem,4.5vw,3.75rem)] font-normal leading-[1.1] tracking-tight text-black ">
-            Better than database points
+            Lightning beats traditional payments
           </h2>
         </div>
 
@@ -51,7 +49,7 @@ export function WhyBitcoinSection() {
         <div className={`mb-20 overflow-hidden rounded-2xl border border-border/40 bg-card transition-all duration-1000 delay-200 ${isInView ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}>
           <div className="grid md:grid-cols-2">
             <div className="border-b border-border/40 p-8 md:border-r md:border-b-0 md:p-12">
-              <p className="mb-8 font-mono text-[10px] font-medium tracking-[0.2em] text-muted-foreground/50 uppercase">Traditional loyalty</p>
+              <p className="mb-8 font-mono text-[10px] font-medium tracking-[0.2em] text-muted-foreground/50 uppercase">Traditional systems</p>
               <div className="flex flex-col gap-5">
                 {comparison.traditional.map((item) => (
                   <div key={item} className="flex items-center gap-4">

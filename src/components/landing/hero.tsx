@@ -49,29 +49,64 @@ export function HeroSection() {
                             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
                             <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
                         </span>
-                        <span className="font-mono text-[11px] font-medium tracking-[0.15em] text-muted-foreground uppercase">Bitcoin-native payments and loyalty</span>
+                        <span className="font-mono text-[11px] font-medium tracking-[0.15em] text-muted-foreground uppercase">Lightning-fast. Programmable. Autonomous.</span>
+                    </div>
+                </div>
+
+                {/* Image preview - right side on lg screens */}
+                <div className="animate-fade-up opacity-0 delay-200 absolute right-0 top-1/2 hidden -translate-y-1/2 lg:block lg:w-1/3">
+                    <div className="absolute overflow-hidden rounded-2xl border border-border/20 shadow-2xl z-110 top-20 left-30 w-1/2 ">
+                        <img
+                            src="/payment.png"
+                            alt="Bitlasso Dashboard Preview"
+                            className=""
+                        />
+                    </div>
+                    <div className="relative overflow-hidden rounded-2xl border border-border/20 shadow-2xl">
+                        <img
+                            src="/image.png"
+                            alt="Bitlasso Dashboard Preview"
+                            className="h-full w-full object-cover"
+                        />
                     </div>
                 </div>
 
                 {/* Center - Main headline */}
                 <div className="animate-fade-up opacity-0 delay-100 my-auto flex flex-col items-start mt-10">
                     <h1 className="max-w-5xl font-serif text-[clamp(3rem,8vw,8.5rem)] font-normal leading-[0.95] tracking-[-0.02em] text-foreground">
-                        Turn 
+                        Turn work into
                         <br />
-                        <span className="italic text-primary">proof of work</span> 
-                        <br />into loyalty
+                        <span className="italic text-primary">repeating</span>
+                        <br />revenue—instantly
                     </h1>
 
                     <p className="mt-8 max-w-lg text-pretty text-lg leading-[1.7] text-muted-foreground lg:mt-10 lg:text-xl">
-                       Real payments. Real rewards. For value that lasts.
+                        Self-custodial wallet with Lightning checkout and loyalty. Built for humans and machines.
                     </p>
 
-                    <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center lg:mt-12">
+                    <div className="animate-fade-up opacity-0 delay-200 right-0 top-1/2 lg:hidden -translate-y-1/2 ">
+                        <div className="relative overflow-hidden rounded-2xl border border-border/20 shadow-2xl z-110 top-80 left-20 w-1/2 ">
+                            <img
+                                src="/payment.png"
+                                alt="Bitlasso Dashboard Preview"
+                                className=""
+                            />
+                        </div>
+                        <div className="relative overflow-hidden rounded-2xl border border-border/20 shadow-2xl">
+                            <img
+                                src="/image.png"
+                                alt="Bitlasso Dashboard Preview"
+                                className="h-full w-full object-cover"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="lg:mt-10 flex flex-col gap-4 sm:flex-row sm:items-center">
                         <Link
                             to="/app"
                             className="group inline-flex items-center gap-3 rounded-full bg-foreground px-8 py-4 text-[15px] font-medium text-background transition-all duration-300 hover:shadow-lg hover:shadow-foreground/10"
                         >
-                            Build your loop
+                            Start building today
                             <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
                         </Link>
                         <Link
@@ -89,7 +124,7 @@ export function HeroSection() {
                     <div className="flex flex-col gap-8 border-t border-border/40 pt-8 sm:flex-row sm:items-baseline sm:gap-16 md:gap-24">
                         {[
                             { value: 1, prefix: "~$", suffix: "", label: "Per checkout" },
-                            { value: 0, prefix: "", suffix: "%", label: "Custody risk" },
+                            { value: 10, prefix: "<", suffix: "s", label: "Lightning settlement" },
                             { value: 100, prefix: "", suffix: "%", label: "Self-custodial" },
                         ].map((stat) => (
                             <div key={stat.label}>

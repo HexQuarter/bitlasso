@@ -9,8 +9,9 @@ const included = [
   "Payment request page generation",
   "Client redemption flow: mint receipts & discount",
   "Self-custody funds settlement",
-  "Support L402 programmatic access for agent integration",
-  "Lightning-network payment oriented for instant settlement"
+  "Support L402 programmatic access for agents",
+  "Lightning-network payment oriented for instant settlement",
+  "Spark liquidity integration"
 ]
 
 const bundles = [
@@ -36,10 +37,10 @@ export function PricingSection() {
           <div className={`mb-20 max-w-2xl transition-all duration-1000 ${isInView ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}>
             <p className="mb-5 font-mono text-[11px] font-medium tracking-[0.2em] text-primary uppercase">Pricing</p>
             <h2 className="font-serif text-[clamp(2rem,4.5vw,3.75rem)] leading-[1.1] tracking-tight text-foreground">
-              Pay <span className="text-primary">once</span>. <br /><span className="text-primary">Save</span> with bundles.
+              Flat fee. No percentage tax.
             </h2>
             <p className="mt-6 max-w-md text-pretty text-lg leading-[1.7] text-muted-foreground">
-              Transparent without subscription or percentage cuts. Buy payment request credits upfront at tiered pricing.
+              Buy payment request credits upfront at flat-fee bundles. Direct to your wallet. Everything included. No hidden costs.
             </p>
           </div>
 

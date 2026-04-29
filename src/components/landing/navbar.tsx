@@ -6,6 +6,7 @@ import { Menu, X } from "lucide-react"
 const links = [
     { label: "Problem", href: "#problem" },
     { label: "How It Works", href: "#how-it-works" },
+    { label: "Why Bitcoin", href: "#why-bitcoin" },
     { label: "Real Rewards", href: "#orwa" },
     // { label: "oRWA", href: "#orwa" },
     // { label: "Decentralized", href: "#decentralized" },
@@ -50,7 +51,7 @@ export function Navbar() {
                         to="/app"
                         className="hidden rounded-full bg-foreground px-6 py-2 text-[13px] font-medium text-background transition-all duration-300 hover:opacity-85 md:inline-flex"
                     >
-                        Build your loop
+                        Start building
                     </Link>
 
                     <button

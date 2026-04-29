@@ -25,7 +25,7 @@ export function CtaSection() {
           <p
             className={`mx-auto mt-8 max-w-lg text-pretty text-lg leading-[1.7] text-muted-foreground transition-all duration-1000 delay-150 ${isInView ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"}`}
           >
-            Start issuing work receipts. Watch loyalty grow.
+            Self-custodial wallet with Lightning checkout offerring earned token discounts that drive repeating revenue. <br /><br />Start with UI, scale to API.
           </p>
 
           <div className={`mt-12 transition-all duration-1000 delay-300 ${isInView ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"}`}>
@@ -33,13 +33,13 @@ export function CtaSection() {
               to="/app"
               className="group inline-flex items-center gap-3 rounded-full bg-foreground px-10 py-4.5 text-[15px] font-medium text-background transition-all duration-300 hover:shadow-lg hover:shadow-foreground/10"
             >
-              Create your first checkout
+              Start building today
               <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
             </Link>
           </div>
 
           <p className={`mt-8 text-[13px] tracking-wide text-muted-foreground/50 transition-all duration-1000 delay-500 ${isInView ? "opacity-100" : "opacity-0"}`}>
-            No subscription. Pay per checkout.
+            No subscription. Create wallet, then payment requests at ~$1 per checkout.
           </p>
         </div>
       </div>

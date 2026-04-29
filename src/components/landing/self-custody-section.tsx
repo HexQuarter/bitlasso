@@ -5,10 +5,10 @@ import { KeyRound, ShieldCheck, Lock, Fingerprint } from "lucide-react"
 import { useInView } from "@/hooks/use-in-view"
 
 const facts = [
-  { icon: ShieldCheck, title: "Bitcoin-secured", text: "Assets are secured on Bitcoin, payments delivered by Lightning Network, while using Spark for the ease of the liquidity." },
+  { icon: ShieldCheck, title: "Bitcoin & Lightning-secured", text: "Payments via Lightning Network. Assets secured on Bitcoin. Spark for liquidity—the full agentic stack." },
   { icon: KeyRound, title: "Your identity", text: "Powered by Nostr — you own your identity, not a platform" },
-  { icon: Fingerprint, title: "Wallet-bound", text: "Once created, receipt tokens are associated to your wallet" },
-  { icon: Lock, title: "Zero access", text: "We don't and we can't have access to your funds" },
+  { icon: Fingerprint, title: "Wallet-bound", text: "Payment channels and programmatic access are associate to your wallet. Your agents can access paid APIs natively." },
+  { icon: Lock, title: "Zero access", text: "We don't and we can't have access to your funds or agent logic. Complete autonomy." },
 ]
 
 export function SelfCustodySection() {

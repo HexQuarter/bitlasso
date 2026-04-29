@@ -20,34 +20,33 @@ const steps = [
   {
     icon: FileText,
     title: "Create a payment request",
-    description: "Generate a payment invoice for your client. Link it to a specific project, milestone, or deliverable.",
+    description: "Generate via UI or API. Link to project/milestone. Set which tokens to issue. Configure webhook for automated token minting.",
     // img: PaymentRequest,
     video: CreatePaymentRequestVideo
   },
   {
     icon: Zap,
     title: "Payment settles instantly",
-    description: "Your client pays over Lightning network for an instant payment rail and secure settlement.",
+    description: "Client pays over Lightning Network. <2 second settlement. Your webhook fires with cryptographic proof. Email/Nostr/webhook notification per config.",
     // img: PaymentCertificate,
     video: PayVideo
   },
   {
     icon: Award,
     title: "Mint an earned credit",
-    description: "After work is completed, issue a self-custodial token to your client. It represents earned value from real work.",
+    description: "Issue self-custodial token manually (today) or via webhook automation. Represents earned value from completed work.",
     // img: Dashboard,
     video: MintCredisVideo
 
   },
   {
     icon: RotateCcw,
-    title: "Client redeems later",
-    description: "When the client returns for new work, they redeem their earned credits. Simple, transparent, self-sovereign.",
+    title: "Drive repeat revenue",
+    description: "Clients redeem tokens for discounts on future payments, increasing retention and automating loyalty at scale.",
     // img: Redeeem,
     video: RedeemCreditsVideo
   },
 ]
-
 
 export function HowItWorksSection() {
   const ref = useRef<HTMLDivElement>(null)
@@ -67,7 +66,7 @@ export function HowItWorksSection() {
               Four steps. No complexity.
             </h2>
             <p className="mt-6 max-w-xl text-pretty text-lg leading-[1.7] text-muted-foreground">
-              From invoice to earned credit in a straightforward flow that respects your time and your client's sovereignty.
+              From invoice to earned credit in a straightforward Lightning flow that respects your time and your client's sovereignty.
             </p>
           </div>
         </div>
