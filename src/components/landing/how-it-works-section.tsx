@@ -10,7 +10,6 @@ import Carbon from '../../../public/carbon.png'
 import PaymentCertificate from '../../../public/payment_cert.png'
 import MintCredits from '../../../public/mint_credit.png'
 import Redeeem from '../../../public/redeem2.jpg'
-import { MyPlayer } from "./video-player"
 
 const steps = [
   {
