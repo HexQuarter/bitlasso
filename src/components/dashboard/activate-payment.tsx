@@ -86,9 +86,9 @@ export const ActivePayment: React.FC<Props> = ({ settings, loading, price, onSub
     }
 
     return (
-        <div className={`overflow-hidden rounded-2xl p-0 bg-background transition-all duration-1000 delay-200 w-full flex flex-col gap-2 border-primary/20 border-1`}>
+        <div className={`overflow-hidden rounded-2xl p-0 bg-background transition-all duration-1000 delay-200 w-full flex flex-col gap-2 shadow-xl`}>
             <div className="flex flex-col gap-2">
-                <p className="font-medium text-white text-center text-sm px-5 py-2 bg-primary border-primary/20 border-1 rounded-tr-2xl rounded-tl-2xl">Activate payment request</p>
+                <p className="font-medium text-muted-foreground text-center text-sm px-5 py-2 bg-gray-100 border rounded-tr-2xl rounded-tl-2xl">Checkout page activation</p>
             </div>
             <div className="flex flex-col px-5 py-2">
                 <header className="flex md:flex-row flex-col justify-between">
