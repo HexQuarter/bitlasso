@@ -54,7 +54,7 @@ export function HeroSection() {
                 </div>
 
                 {/* Image preview - right side on lg screens */}
-                <div className="animate-fade-up opacity-0 delay-200 absolute right-0 top-1/2 hidden -translate-y-1/2 lg:block lg:w-1/3">
+                <div className="animate-fade-up opacity-0 delay-200 absolute 2xl:right-0 right-40 top-1/2 hidden -translate-y-1/2 lg:block lg:w-1/3">
                     <div className="absolute overflow-hidden rounded-2xl border border-border/20 shadow-2xl z-110 top-20 left-30 w-1/2 ">
                         <img
                             src="/payment.png"
@@ -73,7 +73,7 @@ export function HeroSection() {
 
                 {/* Center - Main headline */}
                 <div className="animate-fade-up opacity-0 delay-100 my-auto flex flex-col items-start mt-10">
-                    <h1 className="max-w-5xl font-serif text-[clamp(3rem,8vw,8.5rem)] font-normal leading-[0.95] tracking-[-0.02em] text-foreground">
+                    <h1 className="max-w-5xl lg:max-w-4xl font-serif text-[clamp(3rem,8vw,8.5rem)] lg:text-[clamp(3rem,4vw,8.5rem)] font-normal leading-[0.95] tracking-[-0.02em] text-foreground">
                         Turn work into
                         <br />
                         <span className="italic text-primary">repeating</span>
