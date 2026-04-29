@@ -31,9 +31,28 @@ export const PaidRequest: React.FC<{ paymentRequest: PaymentRequest, btcAmount: 
                             <p className="text-center text-sm">{paymentRequest.orgDetails ? (paymentRequest.orgDetails as OrgSettings).name : ''} has been notified and will follow up shortly.</p>
                             <p className="italic mt-5 text-xs">Payment details below:</p>
                         </div>
-                        <div className="space-y-1 text-center">
-                            <div className="text-sm italic">{paymentRequest.description || ''}</div>
-                        </div>
+                        {paymentRequest.items && paymentRequest.items.length > 0 ? (
+                            <div className="space-y-3">
+                                <div className="text-sm text-neutral-500 text-center">Items</div>
+                                <div className="space-y-2 border rounded-lg p-3 bg-neutral-50">
+                                    {paymentRequest.items.map((item, index) => (
+                                        <div key={index} className="flex justify-between items-start pb-2 last:pb-0 last:border-b-0 border-b border-neutral-200 last:border-b-0">
+                                            <div className="flex-1">
+                                                <p className="text-sm font-semibold text-neutral-900">{item.title}</p>
+                                                {item.description && <p className="text-xs text-neutral-600">{item.description}</p>}
+                                            </div>
+                                            <p className="text-sm font-semibold text-neutral-900 ml-2">
+                                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(item.amount)}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-1 text-center">
+                                <div className="text-sm italic">{paymentRequest.description || ''}</div>
+                            </div>
+                        )}
                         <div className="space-y-1 text-center">
                             <div className="text-sm text-neutral-500">Amount</div>
                             <div className="text-3xl font-semibold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount)}</div>

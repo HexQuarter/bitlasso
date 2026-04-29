@@ -308,7 +308,8 @@ export type PaymentRequest = {
     id: string,
     pubkey: string,
     amount: number;
-    description: string | undefined;
+    description?: string;
+    items?: Array<{ title: string, description?: string, amount: number }>;
     lightningInvoice: string,
     redeemAddress: string,
     settleTx: string | undefined,

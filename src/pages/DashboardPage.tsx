@@ -345,11 +345,11 @@ export const DashboardPage = () => {
             return
         }
 
-        await publishPaymentRequest(settings, wallet, data.amount, data.discountRate, data.description, tokenBalances)
+        await publishPaymentRequest(settings, wallet, data.items, data.discountRate, tokenBalances)
 
         await refreshPaymentRequests()
         void (() => posthog?.capture('payment_request_created', {
-            amount_usd: data.amount,
+            amount_usd: data.items.reduce((sum, item) => sum + item.amount, 0),
             discount_rate: data.discountRate,
             paid_with_credits: !data.feeSats,
         }))()

@@ -81,7 +81,13 @@ export function ForDevlopersSection() {
 {
   body: {
     amount: 1000,
-    description: "Design consultation"
+    items: [
+      { 
+        title: 'Consulting session', 
+        description: '1 hour of consulting', 
+        amount: 1000
+      }
+    ]
   }
   headers: {
     'Authorization': 'Nostr eyJpZCI6ImZlOTY0ZTc1ODkwMzM2MGY...; L402 9fscasfd:11090fdsf'

@@ -138,11 +138,12 @@ export const purchaseCredits = async (bundle: string, wallet: Wallet): Promise<{
     return await response.json()
 }
 
-export const publishPaymentRequest = async (settings: Settings, wallet: Wallet, amount: number, discountRate: number, description?: string, tokenBalances?: TokenBalanceMap) => {
+export const publishPaymentRequest = async (settings: Settings, wallet: Wallet, items: Array<{title: string, description: string, amount: number}>, discountRate: number, tokenBalances?: TokenBalanceMap) => {
     try {
+        const totalAmount = items.reduce((sum, item) => sum + item.amount, 0)
         const paymentRequest = {
-            amount: amount,
-            description: description || '',
+            amount: totalAmount,
+            items: items,
             discountRate
         }
 

@@ -250,10 +250,29 @@ const PendingPaymentState: React.FC<{
                         <h1 className="text-lg text-muted-foreground">{paymentRequest.orgDetails ? (paymentRequest.orgDetails as OrgSettings).name : ''}</h1>
                     </CardHeader>
                     <CardContent className="p-6 space-y-6">
-                        {paymentRequest.description && paymentRequest.description != '' && <div className="space-y-1 text-center">
-                            <div className="text-sm text-neutral-500">Description</div>
-                            <div className="text-sm italic">{paymentRequest.description || ''}</div>
-                        </div>}
+                        {paymentRequest.items && paymentRequest.items.length > 0 ? (
+                            <div className="space-y-3">
+                                <div className="text-sm text-neutral-500 text-center">Items</div>
+                                <div className="space-y-2 border border-border/20 rounded-lg p-3 bg-gray-50 shadow">
+                                    {paymentRequest.items.map((item, index) => (
+                                        <div key={index} className="flex justify-between items-start pb-2 last:pb-0 last:border-b-0 border-b border-neutral-200">
+                                            <div className="flex-1">
+                                                <p className="text-sm font-medium text-neutral-900">{item.title}</p>
+                                                {item.description && <p className="text-xs text-muted-foreground/80">{item.description}</p>}
+                                            </div>
+                                            <p className="text-sm font-semibold text-neutral-900 ml-2">
+                                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(item.amount)}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            paymentRequest.description && paymentRequest.description != '' && <div className="space-y-1 text-center">
+                                <div className="text-sm text-neutral-500">Description</div>
+                                <div className="text-sm italic">{paymentRequest.description || ''}</div>
+                            </div>
+                        )}
                         <div className="space-y-1 text-center">
                             <div className="text-sm text-neutral-500">Amount</div>
                             <div className="text-3xl font-semibold">
@@ -268,7 +287,7 @@ const PendingPaymentState: React.FC<{
                             </div>
                             <div className="text-xs text-neutral-500 flex justify-center flex-col">
                                 {btcAmount > 0 &&
-                                    `${Math.floor(btcAmount * 100_000_000)} sats • ${btcAmount} BTC`
+                                    `${Math.floor(btcAmount * 100_000_000).toLocaleString()} sats • ${btcAmount} BTC`
                                 }
                                 {btcAmount == 0 && <span className="flex justify-center items-center gap-2"><Spinner /> Fetch Bitcoin price</span>}
                                 {remainingRefreshTime !== undefined && remainingRefreshTime > 0 &&
@@ -297,7 +316,7 @@ const PendingPaymentState: React.FC<{
                             </div>}
 
                         <div className="flex justify-center">
-                            <div className="w-48 h-48 bg-neutral-100 rounded-xl flex items-center justify-center text-neutral-400 text-xs text-center p-4">
+                            <div className="w-48 h-48 bg-neutral-100 rounded-xl flex items-center justify-center text-neutral-400 text-xs text-center p-4 shadow-2xl">
                                 <QRCode value={lightningInvoice} />
                             </div>
                         </div>

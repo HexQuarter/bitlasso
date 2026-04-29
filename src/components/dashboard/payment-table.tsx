@@ -14,6 +14,7 @@ export type PaymentRequestItem = {
     createdAt: Date
     amount: number
     description?: string
+    items?: Array<{ title: string, description?: string, amount: number }>
     settleTx?: string,
     discountRate: number,
     redeemAmount?: number,
