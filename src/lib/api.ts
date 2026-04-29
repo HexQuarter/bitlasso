@@ -8,14 +8,40 @@ export const getApiUrl = (path: string) => {
     return `${API_BASE_URL}${path}`;
 }
 
-export const getPaymentPrice = async (paymentRequestId: string): Promise<{ btc: number, endtime: number, lightningInvoice?: string } | undefined> => {
-    const response = await fetch(getApiUrl(`/payment-request/${paymentRequestId}/price`))
-    if (!response.ok) {
+export const parseLightningInvoiceAmount = (invoice: string): number | undefined => {
+    // Parse BOLT11 invoice to extract amount in BTC
+    // Format: lnbc<amount><multiplier>...
+    // Multipliers: m=milli, u=micro, n=nano, p=pico (default: satoshis)
+    try {
+        const match = invoice.match(/^lnbc(\d+)([munp]?)/)
+        if (!match) return undefined
+
+        const amount = parseInt(match[1], 10)
+        console.log('Parsed amount from invoice:', amount)
+        const sats = match[2] === 'm' ? amount * 100_000 :
+            match[2] === 'u' ? amount * 100 :
+                match[2] === 'n' ? amount / 10 :
+                    match[2] === 'p' ? amount / 100 :
+                        amount / 100_000_000
+        return sats / 100_000_000
+    } catch (error) {
+        console.error('Failed to parse lightning invoice amount:', error)
         return undefined
     }
+}
 
-    const { btc, endtime, lightningInvoice } = await response.json()
-    return { btc, endtime, lightningInvoice }
+export const getPaymentPrice = async (paymentRequestId: string): Promise<{ btc: number, endtime: number, lightningInvoice?: string } | undefined> => {
+    try {
+        const response = await fetch(getApiUrl(`/payment-request/${paymentRequestId}/price`))
+        if (!response.ok) {
+            return undefined
+        }
+
+        const { btc, endtime, lightningInvoice } = await response.json()
+        return { btc, endtime, lightningInvoice }
+    } catch (_e) {
+        return undefined
+    }
 }
 
 export const getStatus = async (): Promise<{ sparkStatus: string }> => {

@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
-import { getPaymentPrice, type Settings } from "@/lib/api"
+import { getPaymentPrice, parseLightningInvoiceAmount } from "@/lib/api"
 import { formatTime } from "@/lib/utils"
 import { CheckCircle, Copy, GiftIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
@@ -14,7 +14,6 @@ import LogoPng from '../../public/logo.svg'
 import { fetchPaymentRequest, getBitcoinPrice, subscribePayment, subscribeRedeem, type OrgSettings, type PaymentRequest } from "@/lib/nostr"
 import QRCode from "react-qr-code"
 
-import { useSettings } from "@/hooks/use-settings"
 import { LoyaltySection } from "@/components/payment/loyalty-section"
 import { PaidRequest } from "@/components/payment/paid-request"
 import { Slider } from "@/components/ui/slider"
@@ -23,7 +22,6 @@ type PaymentConfirmation = { transaction: string, settlementMode: string, btcAmo
 
 export const PaymentPage: React.FC = () => {
     const { id } = useParams()
-    const { settings } = useSettings()
     const [loading, setLoading] = useState(true)
 
     const [paymentRequest, setPaymentRequest] = useState<undefined | PaymentRequest>(undefined)
@@ -37,16 +35,16 @@ export const PaymentPage: React.FC = () => {
     const ran = useRef(false);
 
     useEffect(() => {
-        if (!settings || ran.current) return;
+        if (ran.current) return;
         ran.current = true;
 
         if (id && !paymentRequest) {
-            fetchPaymentRequest(settings, id).then(async (paymentRequest) => {
+            fetchPaymentRequest(id).then(async (paymentRequest) => {
                 setLoading(false)
                 setPaymentRequest(paymentRequest)
 
                 if (paymentRequest.settleTx) {
-                    getBitcoinPrice(settings, paymentRequest.id).then(priceDetails => {
+                    getBitcoinPrice(paymentRequest.id).then(priceDetails => {
                         if (!priceDetails) {
                             return
                         }
@@ -56,9 +54,9 @@ export const PaymentPage: React.FC = () => {
                 }
 
                 if (!paymentRequest.redeemAmount) {
-                    subscribeRedeem(settings, paymentRequest.id, () => {
+                    subscribeRedeem(paymentRequest.id, () => {
                         toast.success('Token have been redeemed. You can proceed to the payment with the discount applied')
-                        fetchPaymentRequest(settings, paymentRequest.id).then(paymentRequest => {
+                        fetchPaymentRequest(paymentRequest.id).then(paymentRequest => {
                             setPaymentRequest(paymentRequest)
                         })
                     })
@@ -71,11 +69,11 @@ export const PaymentPage: React.FC = () => {
                     setFetchErrorDetails('The payment request you are trying to access is not accessible. Please check the link or contact the merchant for assistance. If the issue persists please contact us for additional support.')
                 })
         }
-    }, [settings])
+    }, [])
 
     const handleConfirmation = (confirmation: PaymentConfirmation) => {
         if (!paymentRequest) return
-        getBitcoinPrice(settings as Settings, paymentRequest!.id).then(priceDetails => {
+        getBitcoinPrice(paymentRequest!.id).then(priceDetails => {
             if (!priceDetails) {
                 return
             }
@@ -117,8 +115,8 @@ export const PaymentPage: React.FC = () => {
                     <PaidRequest paymentRequest={paymentRequest} btcAmount={btcAmount} btcAmountDate={btcAmountDate} />
                 }
 
-                {!loading && !fetchError && settings && paymentRequest && !paymentRequest.settleTx &&
-                    <PendingPaymentState settings={settings} paymentRequest={paymentRequest} handleConfirmation={handleConfirmation} />
+                {!loading && !fetchError && paymentRequest && !paymentRequest.settleTx &&
+                    <PendingPaymentState paymentRequest={paymentRequest} handleConfirmation={handleConfirmation} />
                 }
             </div>
         </div>
@@ -151,10 +149,9 @@ const ErrorState: React.FC<{ error: string, errorDetails: string }> = ({ error, 
 )
 
 const PendingPaymentState: React.FC<{
-    settings: Settings,
     paymentRequest: PaymentRequest,
-    handleConfirmation: (confirmation: PaymentConfirmation) => void
-}> = ({ settings, paymentRequest, handleConfirmation }) => {
+    handleConfirmation: (confirmation: PaymentConfirmation) => void,
+}> = ({ paymentRequest, handleConfirmation }) => {
 
     const [remainingRefreshTime, setRemainingRefreshTime] = useState(0)
     const [btcAmount, setBtcAmount] = useState(0)
@@ -176,13 +173,15 @@ const PendingPaymentState: React.FC<{
                 .then(async (r) => {
                     if (r.ok) {
                         const { metadata } = await r.json()
-                        setTokenMetadata({ ticker: metadata.ticker })
+                        if (metadata) {
+                            setTokenMetadata({ ticker: metadata.ticker })
+                        }
                     }
                 })
                 .catch(console.error)
         })()
 
-        subscribePayment(settings, paymentRequest.id, (transaction: string, settlementMode: string) => {
+        subscribePayment(paymentRequest.id, (transaction: string, settlementMode: string) => {
             handleConfirmation({ transaction, settlementMode, btcAmount })
         })
     }, [])
@@ -198,19 +197,26 @@ const PendingPaymentState: React.FC<{
 
     const refreshBtc = async (paymentRequestId: string) => {
         const response = await getPaymentPrice(paymentRequestId)
-        if (!response) {
-            return
-        }
-        const { btc, endtime, lightningInvoice } = response
-        setBtcAmount(btc)
-        if (lightningInvoice) {
-            setLightningInvoice(lightningInvoice)
-        }
+        if (response) {
+            const { btc, endtime, lightningInvoice } = response
+            setBtcAmount(btc)
+            if (lightningInvoice) {
+                setLightningInvoice(lightningInvoice)
+            }
 
-        const dateNow = Date.now()
-        const remainingSecs = Math.floor((endtime - dateNow) / 1000)
-        setRemainingRefreshTime(remainingSecs)
-        return remainingSecs
+            const dateNow = Date.now()
+            const remainingSecs = Math.floor((endtime - dateNow) / 1000)
+            setRemainingRefreshTime(remainingSecs)
+            return remainingSecs
+        } else {
+            const btcFromInvoice = parseLightningInvoiceAmount(lightningInvoice)
+            if (!btcFromInvoice) {
+                return
+            }
+
+            setBtcAmount(btcFromInvoice)
+            setRemainingRefreshTime(0)
+        }
     }
 
     const copy = (address: string) => {
@@ -256,7 +262,7 @@ const PendingPaymentState: React.FC<{
                             <div className="flex justify-center items-center gap-2">
                                 <span className="text-xs text-neutral-400">Net: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount)}</span>
                                 <span className="text-xs text-neutral-400">{paymentRequest.orgDetails
-                                    ? (paymentRequest.orgDetails as OrgSettings).vat !== undefined ? ` VAT: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount * (1 + (paymentRequest.orgDetails as OrgSettings).vat / 100))} (${(paymentRequest.orgDetails as OrgSettings).vat}%)` : ''
+                                    ? paymentRequest.vat !== undefined ? ` VAT: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount * (1 + (paymentRequest.vat / 100)))} (${paymentRequest.vat}%)` : ''
                                     : ''
                                 }</span>
                             </div>
@@ -327,7 +333,6 @@ const PendingPaymentState: React.FC<{
 
                         {openedLoyalty &&
                             <LoyaltySection
-                                settings={settings}
                                 paymentRequest={paymentRequest}
                                 handleRedeem={((transaction, amount) => setRedeemDetails({ redeemAmount: amount, redeemTransaction: transaction }))}
                                 maxRedeemableToken={maxRedeemableToken}

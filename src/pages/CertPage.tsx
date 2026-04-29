@@ -23,10 +23,10 @@ export const CertPage: React.FC = () => {
     const ran = useRef(false);
 
     useEffect(() => {
-        if (!settings || ran.current) return;
+        if (ran.current) return;
         ran.current = true;
         if (id) {
-            fetchPaymentRequest(settings, id).then(async (paymentRequest) => {
+            fetchPaymentRequest(id).then(async (paymentRequest) => {
                 if (!paymentRequest.settleTx) {
                     setLoading(false)
 
@@ -35,7 +35,7 @@ export const CertPage: React.FC = () => {
                     return
                 }
 
-                const priceDetails = await getBitcoinPrice(settings, id)
+                const priceDetails = await getBitcoinPrice(id)
                 if (!priceDetails) {
                     return
                 }

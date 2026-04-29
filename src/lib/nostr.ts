@@ -6,7 +6,6 @@ import { bytesToHex, hexToBytes } from "nostr-tools/utils";
 import { mnemonicToSeedSync } from "@scure/bip39";
 import type { Wallet } from "./wallet";
 import type { Receipt } from "@/components/dashboard/receipt-table";
-import type { Settings } from "./api";
 
 const pool = new SimplePool({
     enablePing: true,
@@ -92,7 +91,6 @@ const fetchAndSync = async (filter: Filter) => {
     const backupPromises = BACKUP_RELAIS.map(relay => fetchRelayEvents(relay, filter))
     const primaryResult = await fetchRelayEvents(BACKEND_RELAY, filter)
     const backupResults = await Promise.all(backupPromises)
-    console.log(backupResults)
     const merged = mergeEvents([primaryResult, ...backupResults])
     await replicateMissing([primaryResult, ...backupResults], merged)
     return merged
@@ -209,7 +207,7 @@ export const registerSettings = async (wallet: Wallet, settings: UserSettings) =
     return signedEvent.id
 }
 
-export const fetchPaymentsRequest = async (wallet: Wallet, settings?: Settings): Promise<PaymentRequest[]> => {
+export const fetchPaymentsRequest = async (wallet: Wallet): Promise<PaymentRequest[]> => {
     const events = await fetchAndSync({
         kinds: [30078],
         "#t": ["bitlasso/req"],
@@ -218,17 +216,16 @@ export const fetchPaymentsRequest = async (wallet: Wallet, settings?: Settings):
 
     if (events.length == 0) return []
 
-    const promiseResults = await Promise.allSettled(events.map(e => eventToPaymentRequest(e, settings)))
+    const promiseResults = await Promise.allSettled(events.map(e => eventToPaymentRequest(e)))
 
     return promiseResults
         .filter(p => p.status === 'fulfilled')
         .map(p => p.value)
 }
 
-export const fetchPaymentRequest = async (settings: Settings, id: string): Promise<PaymentRequest> => {
+export const fetchPaymentRequest = async (id: string): Promise<PaymentRequest> => {
     const events = await fetchAndSync({
         kinds: [30078],
-        authors: [settings.publicKey],
         "#d": ["bitlasso/req/" + id]
     });
 
@@ -236,10 +233,10 @@ export const fetchPaymentRequest = async (settings: Settings, id: string): Promi
         throw new Error('Payment not found')
     }
 
-    return eventToPaymentRequest(events[0], settings)
+    return eventToPaymentRequest(events[0])
 }
 
-const eventToPaymentRequest = async (event: NostrEvent, settings?: Settings) => {
+const eventToPaymentRequest = async (event: NostrEvent) => {
     try {
         const { created_at, content } = event
         let paymentRequest = JSON.parse(content) as PaymentRequest
@@ -254,20 +251,19 @@ const eventToPaymentRequest = async (event: NostrEvent, settings?: Settings) => 
         paymentRequest.id = id
         paymentRequest.pubkey = pubkey
         paymentRequest.createdAt = new Date(created_at * 1000)
-        if (settings) {
-            const [paymentDetails, redeemDetails] = await Promise.all([
-                fetchPaymentDetails(settings, paymentRequest.id),
-                fetchRedeemDetails(settings, paymentRequest.id),
-            ])
-            if (paymentDetails) {
-                const { settlementMode, transaction } = paymentDetails
-                paymentRequest.settleTx = transaction
-                paymentRequest.settlementMode = settlementMode
-            }
-            if (redeemDetails) {
-                paymentRequest.redeemAmount = redeemDetails.redeemAmount
-                paymentRequest.redeemTx = redeemDetails.transaction
-            }
+
+        const [paymentDetails, redeemDetails] = await Promise.all([
+            fetchPaymentDetails(paymentRequest.id),
+            fetchRedeemDetails(paymentRequest.id),
+        ])
+        if (paymentDetails) {
+            const { settlementMode, transaction } = paymentDetails
+            paymentRequest.settleTx = transaction
+            paymentRequest.settlementMode = settlementMode
+        }
+        if (redeemDetails) {
+            paymentRequest.redeemAmount = redeemDetails.redeemAmount
+            paymentRequest.redeemTx = redeemDetails.transaction
         }
 
         return paymentRequest
@@ -277,10 +273,9 @@ const eventToPaymentRequest = async (event: NostrEvent, settings?: Settings) => 
     }
 }
 
-const fetchPaymentDetails = async (settings: Settings, requestId: string) => {
+const fetchPaymentDetails = async (requestId: string) => {
     const events = await fetchAndSync({
         kinds: [30078],
-        authors: [settings.publicKey],
         "#d": [`bitlasso/payment/${requestId}`]
     });
     if (events.length == 0) {
@@ -296,10 +291,9 @@ const fetchPaymentDetails = async (settings: Settings, requestId: string) => {
     }
 }
 
-const fetchRedeemDetails = async (settings: Settings, requestId: string) => {
+const fetchRedeemDetails = async (requestId: string) => {
     const events = await fetchAndSync({
         kinds: [30078],
-        authors: [settings.publicKey],
         "#d": [`bitlasso/redeem/${requestId}`],
     });
     if (events.length == 0) {
@@ -327,6 +321,7 @@ export type PaymentRequest = {
     settlementMode: "spark" | "btc"
     orgDetails?: OrgSettings
     invoiceId: string
+    vat: number
 }
 
 export const publishReceiptMetadata = async (wallet: Wallet, transactionId: string, amount: number, createdAt: Date, description?: string, recipient?: string, paymentId?: string) => {
@@ -380,28 +375,31 @@ export const listReceipts = async (wallet: Wallet): Promise<Receipt[]> => {
     })
 }
 
-export const getBitcoinPrice = async (settings: Settings, id: string): Promise<{ usdPrice: number, date: Date } | undefined> => {
-    const events = await fetchAndSync({
-        kinds: [30078],
-        authors: [settings.publicKey],
-        '#d': [`bitlasso/btc-price/${id}`]
-    });
-    if (events.length == 0) {
+export const getBitcoinPrice = async (id: string): Promise<{ usdPrice: number, date: Date } | undefined> => {
+    try {
+        const events = await fetchAndSync({
+            kinds: [30078],
+            '#d': [`bitlasso/btc-price/${id}`],
+        });
+        if (events.length == 0) {
+            return undefined
+        }
+
+        const { usdPrice } = JSON.parse(events[0].content)
+        return { usdPrice, date: new Date(events[0].created_at * 1000) }
+    }
+    catch (_e) {
         return undefined
     }
-
-    const { usdPrice } = JSON.parse(events[0].content)
-    return { usdPrice, date: new Date(events[0].created_at * 1000) }
 }
 
 const getTag = (tags: string[][], name: string) => tags.find(t => t[0] === name)?.[1]
 const getTagByMarker = (tags: string[][], name: string, marker: string) =>
     tags.find(t => t[0] === name && t[3] === marker)?.[1]
 
-export const subscribeRedeem = (id: string, settings: Settings, callback: (redeemAmount: number, redeemTransaction: string) => void) => {
+export const subscribeRedeem = (id: string, callback: (redeemAmount: number, redeemTransaction: string) => void) => {
     subscribeAndSync({
         kinds: [30078],
-        authors: [settings.publicKey],
         "#d": [`bitlasso/redeem/${id}`]
     }, (evt) => {
         const { redeemAmount, redeemTransaction } = JSON.parse(evt.content)
@@ -409,10 +407,9 @@ export const subscribeRedeem = (id: string, settings: Settings, callback: (redee
     })
 }
 
-export const subscribePayment = (requestId: string, settings: Settings, callback: (transaction: string, settlementMode: string) => void) => {
+export const subscribePayment = (requestId: string, callback: (transaction: string, settlementMode: string) => void) => {
     subscribeAndSync({
         kinds: [30078],
-        authors: [settings.publicKey],
         "#d": [`bitlasso/payment/${requestId}`]
     }, (evt) => {
         const { settlementMode, transaction } = JSON.parse(evt.content)

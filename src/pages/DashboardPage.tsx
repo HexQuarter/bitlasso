@@ -232,14 +232,13 @@ export const DashboardPage = () => {
 
     const refreshPaymentRequests = async () => {
         if (!wallet) return []
-        const paymentRequests = await fetchPaymentsRequest(wallet, settings)
+        const paymentRequests = await fetchPaymentsRequest(wallet)
         setPaymentRequests(paymentRequests)
 
-        if (!settings) return
         void (() => {
             // Sync the last ones first: reverse order so newest payments get subscribed first
             [...paymentRequests].reverse().forEach(payment => {
-                subscribePayment(payment.id, settings, async (settleTx, settlementMode) => {
+                subscribePayment(payment.id, async (settleTx, settlementMode) => {
                     setPaymentRequests(prev =>
                         prev.map(p =>
                             p.id === payment.id
@@ -249,7 +248,7 @@ export const DashboardPage = () => {
                     );
                 })
 
-                subscribeRedeem(payment.id, settings, (redeemAmount, redeemTx) => {
+                subscribeRedeem(payment.id, (redeemAmount, redeemTx) => {
                     setPaymentRequests(prev =>
                         prev.map(p =>
                             p.id === payment.id
@@ -623,7 +622,7 @@ export const DashboardPage = () => {
                                 <p className="border-primary/40 flex gap-2 font-serif font-light text-2xl">Payment requests</p>
                                 {paymentRequestLoading && <Skeleton className="h-10 w-40" />}
                                 {!paymentRequestLoading && settings && <CardAction className='w-full lg:w-auto'>
-                                    {satsBalance > 0n && <PaymentRequestForm settings={settings} orgSettings={orgSettings} onSubmit={handlePaymentRequest} price={price} creditBalance={creditBalance} satsBalance={Number(satsBalance)} onPurchaseCredits={handlePurchaseCredits} />}
+                                    {satsBalance > 0n && settings && <PaymentRequestForm settings={settings} orgSettings={orgSettings} onSubmit={handlePaymentRequest} price={price} creditBalance={creditBalance} satsBalance={Number(satsBalance)} onPurchaseCredits={handlePurchaseCredits} />}
                                     {satsBalance == 0n && <Button className="flex gap-2 has-[>svg]:pr-5 bg-primary hover:bg-black w-full lg:w-auto" disabled><Plus className="h-4 w-4" />New payment request</Button>}
                                 </CardAction>}
                             </div>

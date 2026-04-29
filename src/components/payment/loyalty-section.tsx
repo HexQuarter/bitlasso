@@ -1,4 +1,3 @@
-import type { Settings } from "@/lib/api"
 import { shortenAddress, sparkBech32ToHex } from "@/lib/utils"
 import { usePostHog } from "@posthog/react"
 import { useEffect, useState } from "react"
@@ -16,14 +15,13 @@ import { Spinner } from "../ui/spinner"
 import { IconBrowser } from "@tabler/icons-react"
 
 type Props = {
-    settings: Settings,
     paymentRequest: PaymentRequest,
     handleRedeem: (transaction: string, amount: number) => void,
     maxRedeemableToken: number,
     availableWallet: boolean,
 }
 
-export const LoyaltySection: React.FC<Props> = ({ settings, paymentRequest, handleRedeem, maxRedeemableToken, availableWallet }) => {
+export const LoyaltySection: React.FC<Props> = ({ paymentRequest, handleRedeem, maxRedeemableToken, availableWallet }) => {
     const [tokenBalance, setTokenBalance] = useState<undefined | { amount: number, name: string, decimals: number }>(undefined)
     const [redeemedTokens, setRedeemedTokens] = useState(0)
     const [loadingTokens, setLoadingTokens] = useState(false)
@@ -118,7 +116,7 @@ export const LoyaltySection: React.FC<Props> = ({ settings, paymentRequest, hand
             })
 
         if (!paymentRequest.redeemAmount) {
-            subscribeRedeem(settings, paymentRequest.id, (redeemAmount: number, redeemTransaction: string) => {
+            subscribeRedeem(paymentRequest.id, (redeemAmount: number, redeemTransaction: string) => {
                 handleRedeem(redeemTransaction, redeemAmount)
                 setRedeemLoading(false)
             })
