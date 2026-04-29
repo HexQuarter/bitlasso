@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { getSettings, type Settings } from '@/lib/api';
 
 export interface SettingsContextType {
-    settings: Settings | null;
+    settings: Settings | undefined;
     loading: boolean;
     error: string | null;
     refetch: () => Promise<void>;
@@ -12,7 +12,7 @@ export interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-    const [settings, setSettings] = useState<Settings | null>(null);
+    const [settings, setSettings] = useState<Settings | undefined>(undefined);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 

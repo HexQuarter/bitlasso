@@ -4,19 +4,17 @@ import App from './App.tsx'
 import { Auth } from './Auth.tsx'
 import { SiteHeader } from '@/components/dashboard/site-header.tsx'
 import { useWallet } from './hooks/use-wallet.tsx'
-import { Spinner } from "@/components/ui/spinner"
+import { useSettings } from './hooks/use-settings.tsx'
 
 import LogoPng from '../public/logo.svg'
-import { getStatus } from './lib/api.ts'
-import { Alert, AlertDescription, AlertTitle } from './components/ui/alert.tsx'
-import { AlertTriangle } from 'lucide-react'
 
 export const AppRoot = () => {
   const [initializing, setInitializing] = useState(true)
-  const [errorStatus, setErrorStatus] = useState<string | undefined>(undefined)
 
   const { wallet, walletExists } = useWallet()
+  const { loading } = useSettings()
   const [connected, setConnected] = useState(false)
+  const [progressLoadingText, setProgressLoadingText] = useState(".")
 
   useEffect(() => {
     if (walletExists) {
@@ -28,31 +26,19 @@ export const AppRoot = () => {
   }, [walletExists])
 
   useEffect(() => {
-    getStatus()
-      .then(async ({ sparkStatus }) => {
-        if (sparkStatus == 'operational') {
-          setErrorStatus(undefined)
-          setInitializing(false)
-        }
-        else {
-          setErrorStatus(`Spark status is not operational. Please retry in few moments. We are sorry for this inconvenience.`)
+    if (!loading) {
+      new Promise(resolve => setTimeout(resolve, 1000)).then(() => {
+        setProgressLoadingText("..")
+        if (wallet) {
+          setConnected(true)
+          setProgressLoadingText("...")
+          new Promise(resolve => setTimeout(resolve, 1000)).then(() => {
+            setInitializing(false)
+          })
         }
       })
-      .catch(async (e) => {
-        console.log(e)
-        setErrorStatus('An error occured. Please retry in few moments. We are sorry for this inconvenience.')
-      })
-
-  }, [])
-
-  // show spinner while wallet check / effect is running
-  if (((walletExists || wallet) && !connected)) {
-    return (
-      <div className='flex text-primary items-center justify-center h-screen'>
-        <Spinner className='size-8' />
-      </div>
-    )
-  }
+    }
+  }, [loading, wallet])
 
   if ((!wallet && !connected)) {
     console.log('auth', wallet, connected)
@@ -81,17 +67,8 @@ export const AppRoot = () => {
                   <span className='text-primary'>bit</span>
                   lasso
                 </div>
-                {!errorStatus && <Spinner className='size-5' />}
-                {!errorStatus && <p className='mt-10 text-primary font-mono uppercase text-xs animate-[bounce_0.8s_ease-in-out_infinite]'>wallet sync...</p>}
+                <p className='mt-10 text-primary text-lg'>Initializing {progressLoadingText}</p>
               </div>
-
-              {errorStatus && <Alert className="text-primary bg-primary/10 border-1 border-primary/20">
-                <AlertTriangle />
-                <AlertTitle className="font-semibold">Networking issue</AlertTitle>
-                <AlertDescription className="flex flex-col gap-5 text-foreground">
-                  {errorStatus}
-                </AlertDescription>
-              </Alert>}
             </div>
           </div>
         </div>

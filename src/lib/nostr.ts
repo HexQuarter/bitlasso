@@ -79,7 +79,7 @@ const replicateMissing = async (results: Array<{ relay: string, events: Event[] 
 
             if (missing.length === 0) return Promise.resolve()
 
-            console.log(`pushing ${missing.length} missing events to ${relay}`)
+            console.log(`pushing ${missing.length} missing events to ${relay}`, missing)
             return Promise.allSettled(
                 missing.map(e => pool.publish([relay], e))
             )
@@ -88,39 +88,13 @@ const replicateMissing = async (results: Array<{ relay: string, events: Event[] 
 }
 
 const fetchAndSync = async (filter: Filter) => {
-    const primaryResult = await fetchRelayEvents(BACKEND_RELAY, filter)
+    console.log('fetching events with filter', filter)
     const backupPromises = BACKUP_RELAIS.map(relay => fetchRelayEvents(relay, filter))
-
-    if (primaryResult.events.length > 0) {
-        void (async () => {
-            const backupResults = await Promise.all(backupPromises)
-            const merged = mergeEvents([primaryResult, ...backupResults])
-            await replicateMissing([primaryResult, ...backupResults], merged)
-        })()
-        return primaryResult.events
-    }
-
-    const firstBackup = await Promise.any(
-        backupPromises.map(async promise => {
-            const result = await promise
-            if (result.events.length === 0) throw new Error('no-events')
-            return result
-        })
-    ).catch(() => null as { relay: string, events: Event[] } | null)
-
-    if (firstBackup) {
-        void (async () => {
-            const backupResults = await Promise.all(backupPromises)
-            const merged = mergeEvents([primaryResult, ...backupResults])
-            await replicateMissing([primaryResult, ...backupResults], merged)
-        })()
-        return firstBackup.events
-    }
-
+    const primaryResult = await fetchRelayEvents(BACKEND_RELAY, filter)
     const backupResults = await Promise.all(backupPromises)
+    console.log(backupResults)
     const merged = mergeEvents([primaryResult, ...backupResults])
     await replicateMissing([primaryResult, ...backupResults], merged)
-
     return merged
 }
 
@@ -235,7 +209,7 @@ export const registerSettings = async (wallet: Wallet, settings: UserSettings) =
     return signedEvent.id
 }
 
-export const fetchPaymentsRequest = async (settings: Settings, wallet: Wallet): Promise<PaymentRequest[]> => {
+export const fetchPaymentsRequest = async (wallet: Wallet, settings?: Settings): Promise<PaymentRequest[]> => {
     const events = await fetchAndSync({
         kinds: [30078],
         "#t": ["bitlasso/req"],
@@ -244,7 +218,7 @@ export const fetchPaymentsRequest = async (settings: Settings, wallet: Wallet): 
 
     if (events.length == 0) return []
 
-    const promiseResults = await Promise.allSettled(events.map(e => eventToPaymentRequest(settings, e)))
+    const promiseResults = await Promise.allSettled(events.map(e => eventToPaymentRequest(e, settings)))
 
     return promiseResults
         .filter(p => p.status === 'fulfilled')
@@ -262,10 +236,10 @@ export const fetchPaymentRequest = async (settings: Settings, id: string): Promi
         throw new Error('Payment not found')
     }
 
-    return eventToPaymentRequest(settings, events[0])
+    return eventToPaymentRequest(events[0], settings)
 }
 
-const eventToPaymentRequest = async (settings: Settings, event: NostrEvent) => {
+const eventToPaymentRequest = async (event: NostrEvent, settings?: Settings) => {
     try {
         const { created_at, content } = event
         let paymentRequest = JSON.parse(content) as PaymentRequest
@@ -280,22 +254,20 @@ const eventToPaymentRequest = async (settings: Settings, event: NostrEvent) => {
         paymentRequest.id = id
         paymentRequest.pubkey = pubkey
         paymentRequest.createdAt = new Date(created_at * 1000)
-        const [paymentDetails, redeemDetails, userSettings] = await Promise.all([
-            fetchPaymentDetails(settings, paymentRequest.id),
-            fetchRedeemDetails(settings, paymentRequest.id),
-            fetchSettingsByPubkey(paymentRequest.pubkey)
-        ])
-        if (paymentDetails) {
-            const { settlementMode, transaction } = paymentDetails
-            paymentRequest.settleTx = transaction
-            paymentRequest.settlementMode = settlementMode
-        }
-        if (redeemDetails) {
-            paymentRequest.redeemAmount = redeemDetails.redeemAmount
-            paymentRequest.redeemTx = redeemDetails.transaction
-        }
-        if (userSettings) {
-            paymentRequest.orgDetails = userSettings.org
+        if (settings) {
+            const [paymentDetails, redeemDetails] = await Promise.all([
+                fetchPaymentDetails(settings, paymentRequest.id),
+                fetchRedeemDetails(settings, paymentRequest.id),
+            ])
+            if (paymentDetails) {
+                const { settlementMode, transaction } = paymentDetails
+                paymentRequest.settleTx = transaction
+                paymentRequest.settlementMode = settlementMode
+            }
+            if (redeemDetails) {
+                paymentRequest.redeemAmount = redeemDetails.redeemAmount
+                paymentRequest.redeemTx = redeemDetails.transaction
+            }
         }
 
         return paymentRequest
@@ -426,7 +398,7 @@ const getTag = (tags: string[][], name: string) => tags.find(t => t[0] === name)
 const getTagByMarker = (tags: string[][], name: string, marker: string) =>
     tags.find(t => t[0] === name && t[3] === marker)?.[1]
 
-export const subscribeRedeem = (settings: Settings, id: string, callback: (redeemAmount: number, redeemTransaction: string) => void) => {
+export const subscribeRedeem = (id: string, settings: Settings, callback: (redeemAmount: number, redeemTransaction: string) => void) => {
     subscribeAndSync({
         kinds: [30078],
         authors: [settings.publicKey],
@@ -437,7 +409,7 @@ export const subscribeRedeem = (settings: Settings, id: string, callback: (redee
     })
 }
 
-export const subscribePayment = (settings: Settings, requestId: string, callback: (transaction: string, settlementMode: string) => void) => {
+export const subscribePayment = (requestId: string, settings: Settings, callback: (transaction: string, settlementMode: string) => void) => {
     subscribeAndSync({
         kinds: [30078],
         authors: [settings.publicKey],

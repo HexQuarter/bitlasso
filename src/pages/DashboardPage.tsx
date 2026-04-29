@@ -21,7 +21,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { RevenueChart } from "@/components/dashboard/revenue-chart"
 import { fetchSettings, fetchPaymentsRequest, listReceipts, publishReceiptMetadata, subscribePayment, subscribeRedeem, type OrgSettings, registerSettings } from "@/lib/nostr"
 import { Spinner } from "@/components/ui/spinner"
-import { publishPaymentRequest, type Settings } from "@/lib/api"
+import { publishPaymentRequest} from "@/lib/api"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useNavigate } from "react-router"
 import { IconMessageDollar } from "@tabler/icons-react"
@@ -197,6 +197,7 @@ export const DashboardPage = () => {
         })()
 
         void (async () => {
+            console.log('Refreshing payment requests and receipts...')
             await refreshPaymentRequests()
             setPaymentRequestLoading(false)
             await refreshReceipts()
@@ -230,14 +231,15 @@ export const DashboardPage = () => {
     }
 
     const refreshPaymentRequests = async () => {
-        if (!wallet || !settings) return []
-        const paymentRequests = await fetchPaymentsRequest(settings, wallet)
+        if (!wallet) return []
+        const paymentRequests = await fetchPaymentsRequest(wallet, settings)
         setPaymentRequests(paymentRequests)
 
+        if (!settings) return
         void (() => {
             // Sync the last ones first: reverse order so newest payments get subscribed first
             [...paymentRequests].reverse().forEach(payment => {
-                subscribePayment(settings as Settings, payment.id, async (settleTx, settlementMode) => {
+                subscribePayment(payment.id, settings, async (settleTx, settlementMode) => {
                     setPaymentRequests(prev =>
                         prev.map(p =>
                             p.id === payment.id
@@ -247,7 +249,7 @@ export const DashboardPage = () => {
                     );
                 })
 
-                subscribeRedeem(settings as Settings, payment.id, (redeemAmount, redeemTx) => {
+                subscribeRedeem(payment.id, settings, (redeemAmount, redeemTx) => {
                     setPaymentRequests(prev =>
                         prev.map(p =>
                             p.id === payment.id
@@ -296,7 +298,7 @@ export const DashboardPage = () => {
     }
 
     const handleIssueReceipt = async (data: IssueReceiptData) => {
-        if (!wallet || !tokenMetadata || !settings) return
+        if (!wallet || !tokenMetadata) return
 
         const response = await wallet?.mintTokens(BigInt(data.mintableTokens) * BigInt(10 ** tokenMetadata.decimals))
         if (!response) return
