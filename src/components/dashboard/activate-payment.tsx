@@ -9,12 +9,6 @@ import { send } from "@/lib/utils"
 import { BTCAsset } from "./send"
 
 
-const included = [
-    "Payment page generation",
-    "Client redemption flow",
-    "Instant settlement with Lightning"
-]
-
 const USD_FEE = 1
 
 function usdToBtc(usd: number, btcPriceUsd: number) {
@@ -113,19 +107,6 @@ export const ActivePayment: React.FC<Props> = ({ settings, loading, price, onSub
                     status={status}
                     statusMessage={statusMessage}
                 />}
-                <p className="text-sm mt-5 mb-5">This includes: </p>
-                {included.map((item, i) => (
-                    <div
-                        key={item}
-                        className={`flex items-center gap-4 py-2 ${i < included.length - 1 ? "border-b border-border/20" : ""}`}
-                    >
-                        <div className="flex items-center justify-center rounded-full bg-primary/10 p-2">
-                            <Check className="h-4 w-4 text-primary" />
-                        </div>
-                        <span className="text-sm text-foreground/80">{item}</span>
-                    </div>
-                ))}
-
                 <div className="py-8 flex justify-center gap-2 px-5 flex-col items-center">
                     <Button className="w" onClick={handleActivate} disabled={loading || (satsBalance < usdToBtc(USD_FEE, price) * 100_000_000 && creditBalance == 0)}>
                         {loading ? <Spinner /> : `Activate for ${balance == 0 ? `~${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(USD_FEE)} (${usdToBtc(USD_FEE, price) * 100_000_000} sats)` : '1 credit'}`}
