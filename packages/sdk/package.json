@@ -1,6 +1,6 @@
 {
   "name": "@bitlasso/sdk",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "TypeScript SDK for BitLasso - Direct API access to Bitcoin/Spark payment functionality",
   "main": "dist/index.js",
   "module": "./dist/index.js",
