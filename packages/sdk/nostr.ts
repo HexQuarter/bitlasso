@@ -74,7 +74,18 @@ const replicateMissing = async (results: Array<{ relay: string, events: Event[] 
 const fetchAndSync = async (relayConfig: RelayConfig, filter: Filter) => {
     console.log('fetching events with filter', filter)
     const backupPromises = relayConfig.backupRelays.map(relay => fetchRelayEvents(relay, filter))
-    const primaryResult = await fetchRelayEvents(relayConfig.backendRelay, filter)
+    const primaryResult = await fetchRelayEvents(relayConfig.backendRelay, filter).catch(() => {
+        return { events: [], relay: relayConfig.backendRelay }
+    })
+    if (primaryResult.events.length > 0) {
+        void (async () => {
+            const backupResults = await Promise.all(backupPromises)
+            const merged = mergeEvents([primaryResult, ...backupResults])
+            await replicateMissing([primaryResult, ...backupResults], merged)
+        })()
+        return primaryResult.events
+    }
+
     const backupResults = await Promise.all(backupPromises)
     const merged = mergeEvents([primaryResult, ...backupResults])
     await replicateMissing([primaryResult, ...backupResults], merged)
