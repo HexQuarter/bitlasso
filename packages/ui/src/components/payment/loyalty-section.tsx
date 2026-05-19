@@ -2,9 +2,9 @@ import { shortenAddress, sparkBech32ToHex } from "@/lib/utils"
 import { usePostHog } from "@posthog/react"
 import { useEffect, useState } from "react"
 import { AddressPurpose, request, RpcErrorCode } from "sats-connect"
-import { CheckCircle, Copy, ExternalLink, Gift } from "lucide-react"
+import { CheckCircle, Copy, ExternalLink, Gift, GiftIcon } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs"
-import { RelayConfig, subscribeRedeem, type PaymentRequest } from "@bitlasso/sdk" 
+import { Client, RelayConfig, subscribeRedeem, type PaymentRequest } from "@bitlasso/sdk"
 
 import XVerseWhiteLogo from '../../../public/xverse_white_logo.png'
 import { toast } from "sonner"
@@ -13,6 +13,7 @@ import { Slider } from "../ui/slider"
 import QRCode from "react-qr-code"
 import { Spinner } from "../ui/spinner"
 import { IconBrowser } from "@tabler/icons-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog"
 
 type Props = {
     paymentRequest: PaymentRequest,
@@ -28,12 +29,16 @@ export const LoyaltySection: React.FC<Props> = ({ paymentRequest, handleRedeem, 
     const [redeemLoading, setRedeemLoading] = useState(false)
     const [redeeemError, setRedeemError] = useState<undefined | string>(undefined)
     const [wallet, setWallet] = useState<string | undefined>(undefined)
-    const [tokenMetadata, setTokenMetadata] = useState<undefined | { name: string, ticker: string, decimals: number }>(undefined)
+    const [tokenAddress, setTokenAddress] = useState("")
 
     const posthog = usePostHog()
 
     const connectWallet = async () => {
         if (!paymentRequest) return
+
+        const c = new Client({ dev: import.meta.env.DEV })
+        const { tokenAddress } = await c.getSettings()
+        setTokenAddress(tokenAddress)
 
         const data = await request('getAccounts', { purposes: [AddressPurpose.Spark, AddressPurpose.Payment] });
         if (data.status !== 'success') {
@@ -55,7 +60,7 @@ export const LoyaltySection: React.FC<Props> = ({ paymentRequest, handleRedeem, 
             return
         }
 
-        const tokenIdentifierHex = sparkBech32ToHex(paymentRequest.tokenId)
+        const tokenIdentifierHex = sparkBech32ToHex(tokenAddress)
         const tokenBalance = sparkBalance.result.tokenBalances.find(tb => tb.tokenMetadata.tokenIdentifier == tokenIdentifierHex)
         if (!tokenBalance) {
             setLoadingTokens(false)
@@ -78,7 +83,7 @@ export const LoyaltySection: React.FC<Props> = ({ paymentRequest, handleRedeem, 
 
         const response = await request("spark_transferToken", {
             receiverSparkAddress: paymentRequest.redeemAddress,
-            tokenIdentifier: paymentRequest.tokenId,
+            tokenIdentifier: tokenAddress,
             tokenAmount: redeemedTokens
         });
         if (response.status == 'error') {
@@ -107,16 +112,9 @@ export const LoyaltySection: React.FC<Props> = ({ paymentRequest, handleRedeem, 
     }
 
     useEffect(() => {
-
-        fetch(`https://api.sparkscan.io/v1/tokens/${paymentRequest.tokenId}`)
-            .then(res => res.json())
-            .then(data => {
-                const { metadata } = data
-                setTokenMetadata(metadata)
-            })
-
         if (!paymentRequest.redeemAmount) {
             subscribeRedeem(new RelayConfig({ dev: import.meta.env.DEV }), paymentRequest.id, (redeemAmount: number, redeemTransaction: string) => {
+                console.log(redeemAmount)
                 handleRedeem(redeemTransaction, redeemAmount)
                 setRedeemLoading(false)
             })
@@ -124,139 +122,147 @@ export const LoyaltySection: React.FC<Props> = ({ paymentRequest, handleRedeem, 
     }, [])
 
     return (
-        <div className="">
-            <div className="mt-1">
-                <div className="text-slate-800 text-medium pb-2 flex items-center gap-2 text-sm">Redeem {tokenMetadata?.name} token ({tokenMetadata?.ticker}) to get discount.</div>
-            </div>
-            <Tabs defaultValue="browser" className="mt-5">
-                <TabsList className="p-0 border-0 flex-col lg:flex-row flex h-full bg-transparent gap-3">
-                    <TabsTrigger value="browser" className="bg-white border bg-black/5 text-sm data-[state=active]:text-primary px-4 py-2 w-full data-[state=active]:bg-primary/10 data-[state=active]:border-primary/20 rounded-full h-10 text-xs"><IconBrowser />Use browser wallet</TabsTrigger>
-                    <TabsTrigger value="external" className="bg-white border bg-black/5 text-sm data-[state=active]:text-primary px-4 py-2 w-full data-[state=active]:bg-primary/10 data-[state=active]:border-primary/20 rounded-full h-10 text-xs"><ExternalLink />Use external wallet</TabsTrigger>
-                </TabsList>
-                <TabsContent value="browser" className="bg-gray-50 p-5 rounded-sm">
-                    {!wallet &&
-                        <div className="flex flex-col gap-2">
-                            <p className="text-sm text-muted-foreground ">Connect your wallet to check your token balance and apply a discount to this payment.</p>
-                            {availableWallet && <div className="flex mt-5"><Button onClick={connectWallet} className="text-xs"><img src={XVerseWhiteLogo} className="h-3 w-3" /> Connect XVerse wallet</Button></div>}
-                            {!availableWallet && <p className="text-muted-foreground text-xs border-t pt-2 mt-2">Don't have Xverse? <a href="https://xverse.app" target="_blank" className="text-primary hover:underline">Download it free</a></p>}
-                        </div>
-                    }
-                    {wallet &&
-                        <div className="flex flex-col gap-5">
-                            {loadingTokens && <span className="text-xs flex items-center gap-2 text-primary"><Spinner /> fetching token balance...</span>}
-                            {!loadingTokens &&
-                                <div className="flex flex-col gap-5">
-                                    <div className="flex justify-between items-center border border-primary/10 bg-primary/10 rounded-sm gap-2 p-2">
-                                        <div className="flex items-center gap-2">
-                                            <div className="h-2 w-2 bg-green-400 rounded"></div>
-                                            <div className="flex flex-col">
-                                                <span className="text-xs text-muted-foreground">Connected wallet: </span>
-                                                <span className="text-xs text-muted-foreground font-mono tracking-tight">{shortenAddress(wallet, 5)}</span>
+        <Dialog>
+            <DialogTrigger>
+                <Button variant={'outline'} ><GiftIcon className="text-primary" /> Save up to {paymentRequest.discountRate}%</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-hidden bg-slate-50 overflow-y-auto">
+                <DialogHeader className="">
+                    <DialogTitle className="text-slate-800 text-2xl pb-2 flex items-center gap-2">Loyalty</DialogTitle>
+                    <DialogDescription className="flex flex-col gap-2">
+                        Redeem Bitalsso (BITL) tokens to get discount.
+                    </DialogDescription>
+                </DialogHeader>
+                <Tabs defaultValue="browser" className="mt-5">
+                    <TabsList className="p-0 border-0 flex-col lg:flex-row flex h-full bg-transparent gap-3">
+                        <TabsTrigger value="browser" className="bg-white border bg-black/5 text-sm data-[state=active]:text-primary px-4 py-2 w-full data-[state=active]:bg-primary/10 data-[state=active]:border-primary/20 rounded-full h-10 text-xs"><IconBrowser />Use browser wallet</TabsTrigger>
+                        <TabsTrigger value="external" className="bg-white border bg-black/5 text-sm data-[state=active]:text-primary px-4 py-2 w-full data-[state=active]:bg-primary/10 data-[state=active]:border-primary/20 rounded-full h-10 text-xs"><ExternalLink />Use external wallet</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="browser" className="bg-gray-50 py-5 rounded-sm">
+                        {!wallet &&
+                            <div className="flex flex-col gap-2">
+                                <p className="text-sm text-muted-foreground ">Connect your wallet to check your token balance and apply a discount to this payment.</p>
+                                {availableWallet && <div className="flex mt-5"><Button onClick={connectWallet} className="text-xs"><img src={XVerseWhiteLogo} className="h-3 w-3" /> Connect XVerse wallet</Button></div>}
+                                {!availableWallet && <p className="text-muted-foreground text-xs border-t pt-2 mt-2">Don't have Xverse? <a href="https://xverse.app" target="_blank" className="text-primary hover:underline">Download it free</a></p>}
+                            </div>
+                        }
+                        {wallet &&
+                            <div className="flex flex-col gap-5">
+                                {loadingTokens && <span className="text-xs flex items-center gap-2 text-primary"><Spinner /> fetching token balance...</span>}
+                                {!loadingTokens &&
+                                    <div className="flex flex-col gap-5">
+                                        <div className="flex justify-between items-center border border-border bg-white rounded-sm gap-2 p-2">
+                                            <div className="flex items-center gap-2">
+                                                <div className="h-2 w-2 bg-green-400 rounded"></div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs text-muted-foreground">Connected wallet: </span>
+                                                    <span className="text-xs text-muted-foreground font-mono tracking-tight">{shortenAddress(wallet, 5)}</span>
+                                                </div>
                                             </div>
                                         </div>
+                                        {!tokenBalance && <p className="text-sm font-semibold">You dont'have tokens to redeem for that payment.</p>}
+                                        {tokenBalance &&
+                                            <>
+                                                <div className="rounded-lg flex flex-col">
+                                                    <span className="text-sm text-muted-foreground">Your token balance</span>
+                                                    <span className="text-xl">{tokenBalance?.amount} BITL</span>
+                                                </div>
+                                                <div className="flex flex-col gap-2">
+                                                    <div className="flex justify-between text-xs">
+                                                        <span>Tokens to redeem </span>
+                                                        <span>{redeemedTokens} BITL (up to max {paymentRequest.discountRate}%)</span>
+                                                    </div>
+                                                    <Slider step={1} max={Math.min(tokenBalance?.amount, maxRedeemableToken)} onValueChange={(val) => setRedeemedTokens(val[0])} />
+                                                    <div className="flex justify-between text-xs text-muted-foreground">
+                                                        <span>0 (no discount)</span>
+                                                        <span>{Math.min(tokenBalance?.amount, maxRedeemableToken)}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-between gap-5">
+                                                    <div className="flex flex-col rounded-lg border border-border flex-1 p-3 gap-1 bg-white">
+                                                        <span className="text-xs">You pay</span>
+                                                        <span className="text-lg font-semibold text-primary">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount - redeemedTokens)}</span>
+                                                    </div>
+                                                    <div className="flex flex-col bg-green-400/10 rounded-lg border border-green-400/20 flex-1 p-3 gap-1">
+                                                        <span className="text-xs">You save</span>
+                                                        <span className="text-lg text-green-600 font-semibold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(redeemedTokens)}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-center mt-5"><Button onClick={handleRedeemTokens} disabled={redeemedTokens == 0 || redeemLoading}>{redeemLoading ? <Spinner /> : <span className="flex items-center gap-2"><Gift />Apply discount</span>}</Button></div>
+                                                {redeeemError && <p className="text-primary text-sm">Error: {redeeemError}</p>}
+                                            </>
+                                        }
+
                                     </div>
-                                    {!tokenBalance && <p className="text-sm font-semibold">You dont'have tokens to redeem for that payment.</p>}
-                                    {tokenBalance &&
-                                        <>
-                                            <div className="rounded-lg flex flex-col">
-                                                <span className="text-sm text-muted-foreground">Your token balance</span>
-                                                <span className="text-xl">{tokenBalance?.amount} {tokenMetadata?.ticker || tokenBalance?.name}</span>
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                <div className="flex justify-between text-xs">
-                                                    <span>Tokens to redeem</span>
-                                                    <span>{redeemedTokens} {tokenMetadata?.ticker || tokenBalance?.name}</span>
-                                                </div>
-                                                <Slider step={1} max={maxRedeemableToken} onValueChange={(val) => setRedeemedTokens(val[0])} />
-                                                <div className="flex justify-between text-xs text-muted-foreground">
-                                                    <span>0 (no discount)</span>
-                                                    <span>{maxRedeemableToken} (max 10%)</span>
-                                                </div>
-                                            </div>
-                                            <div className="flex justify-between gap-5">
-                                                <div className="flex flex-col rounded-lg border border-border flex-1 p-3 gap-1">
-                                                    <span className="text-xs">You pay</span>
-                                                    <span className="text-lg font-semibold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount - redeemedTokens)}</span>
-                                                </div>
-                                                <div className="flex flex-col bg-green-400/10 rounded-lg border border-green-400/20 flex-1 p-3 gap-1">
-                                                    <span className="text-xs">You save</span>
-                                                    <span className="text-lg text-green-600 font-semibold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(redeemedTokens)}</span>
-                                                </div>
-                                            </div>
-                                            <div className="flex justify-center mt-5"><Button onClick={handleRedeemTokens} disabled={redeemedTokens == 0 || redeemLoading}>{redeemLoading ? <Spinner /> : <span className="flex items-center gap-2"><Gift />Apply discount</span>}</Button></div>
-                                            {redeeemError && <p className="text-primary text-sm">Error: {redeeemError}</p>}
-                                        </>
-                                    }
-
+                                }
+                            </div>
+                        }
+                    </TabsContent>
+                    <TabsContent value="external" className="flex flex-col gap-5 bg-gray-50 p-5 rounded-sm">
+                        <p className="text-sm text-muted-foreground">Redeem with any Spark-compatible wallet to apply your loyalty discount.</p>
+                        <div className="flex flex-col justify-center">
+                            <div className="flex justify-center">
+                                <div className="w-48 h-48 bg-white rounded-xl flex items-center justify-center text-neutral-400 text-xs text-center p-4">
+                                    <QRCode value={paymentRequest.redeemAddress} />
                                 </div>
-                            }
+                            </div>
+
+                            <div className="space-y-2 my-2">
+                                <div className="text-xs text-neutral-500 text-center">Scan or copy to pay the invoice</div>
+                                <div className="flex items-center justify-between bg-neutral-50 border rounded-lg px-3 py-2">
+                                    <div className="text-xs font-mono text-neutral-700 break-all">
+                                        {paymentRequest.redeemAddress}
+                                    </div>
+                                    <button
+                                        onClick={() => copy(paymentRequest.redeemAddress)}
+                                        className="text-neutral-500 hover:text-black"
+                                    >
+                                        {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
+                                    </button>
+                                </div>
+                                {copied && (
+                                    <div className="text-xs text-green-600">Copied to clipboard</div>
+                                )}
+                            </div>
+
+
+                            {/* <QRCode value={paymentRequest.redeemInvoice} size={150} />
+                            <div className="space-y-2">
+                                <div className="text-xs text-neutral-500">Scan or copy to pay the invoice</div>
+                                <div className="flex items-center justify-between bg-neutral-50 border rounded-lg px-3 py-2">
+                                    <div className="text-xs font-mono text-neutral-700 truncate">
+                                        {paymentRequest.redeemInvoice}
+                                    </div>
+                                    <button
+                                        onClick={() => copy(paymentRequest.lightningInvoice)}
+                                        className="text-neutral-500 hover:text-black"
+                                    >
+                                        {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
+                                    </button>
+                                </div>
+                                {copied && (
+                                    <div className="text-xs text-green-600">Copied to clipboard</div>
+                                )}
+                            </div> */}
                         </div>
-                    }
-                </TabsContent>
-                <TabsContent value="external" className="flex flex-col gap-5 bg-gray-50 p-5 rounded-sm">
-                    <p className="text-sm text-muted-foreground">Redeem with any Spark-compatible wallet to apply your loyalty discount.</p>
-                    <div className="flex flex-col justify-center">
-                        <div className="flex justify-center">
-                            <div className="w-48 h-48 bg-white rounded-xl flex items-center justify-center text-neutral-400 text-xs text-center p-4">
-                                <QRCode value={paymentRequest.redeemAddress} />
+                        <div className="flex flex-col gap-4 text-xs">
+                            <div className="flex gap-2 items-center">
+                                <span className="bg-primary/5 border border-primary/20 text-primary rounded-full p-4 h-5 w-5 text-center items-center flex justify-center">1</span>
+                                <span>Open any Spark-compatible wallet (i.e. <a href="https://xverse.app" target="_blank" className="text-primary hover:underline">XVerse</a>, <a href="https://blitzwalletapp.com/" target="_blank" className="text-primary hover:underline">Blitz</a>) and tap Scan.</span>
+                            </div>
+                            <div className="flex gap-2 items-center">
+                                <span className="bg-primary/5 border border-primary/20 text-primary rounded-full p-4 h-5 w-5 text-center items-center flex justify-center">2</span>
+                                <span>Scan this QR code and send {maxRedeemableToken > 1 ? `up to ${maxRedeemableToken} BITL` : `1 BITL`}.</span>
+
+                            </div>
+                            <div className="flex gap-2 items-center">
+                                <span className="bg-primary/5 border border-primary/20 text-primary rounded-full p-4 h-5 w-5 text-center items-center flex justify-center">3</span>
+                                <span>Confirm the redemption. This page will update automatically with your discount applied.</span>
                             </div>
                         </div>
-
-                        <div className="space-y-2 my-2">
-                            <div className="text-xs text-neutral-500 text-center">Scan or copy to pay the invoice</div>
-                            <div className="flex items-center justify-between bg-neutral-50 border rounded-lg px-3 py-2">
-                                <div className="text-xs font-mono text-neutral-700 truncate">
-                                    {paymentRequest.redeemAddress}
-                                </div>
-                                <button
-                                    onClick={() => copy(paymentRequest.redeemAddress)}
-                                    className="text-neutral-500 hover:text-black"
-                                >
-                                    {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
-                                </button>
-                            </div>
-                            {copied && (
-                                <div className="text-xs text-green-600">Copied to clipboard</div>
-                            )}
-                        </div>
-
-
-                        {/* <QRCode value={paymentRequest.redeemInvoice} size={150} />
-                        <div className="space-y-2">
-                            <div className="text-xs text-neutral-500">Scan or copy to pay the invoice</div>
-                            <div className="flex items-center justify-between bg-neutral-50 border rounded-lg px-3 py-2">
-                                <div className="text-xs font-mono text-neutral-700 truncate">
-                                    {paymentRequest.redeemInvoice}
-                                </div>
-                                <button
-                                    onClick={() => copy(paymentRequest.lightningInvoice)}
-                                    className="text-neutral-500 hover:text-black"
-                                >
-                                    {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
-                                </button>
-                            </div>
-                            {copied && (
-                                <div className="text-xs text-green-600">Copied to clipboard</div>
-                            )}
-                        </div> */}
-                    </div>
-                    <div className="flex flex-col gap-4 text-xs">
-                        <div className="flex gap-2 items-center">
-                            <span className="bg-primary/5 border border-primary/20 text-primary rounded-full p-4 h-5 w-5 text-center items-center flex justify-center">1</span>
-                            <span>Open any Spark-compatible wallet (i.e. <a href="https://xverse.app" target="_blank" className="text-primary hover:underline">XVerse</a>, <a href="https://blitzwalletapp.com/" target="_blank" className="text-primary hover:underline">Blitz</a>) and tap Scan.</span>
-                        </div>
-                        <div className="flex gap-2 items-center">
-                            <span className="bg-primary/5 border border-primary/20 text-primary rounded-full p-4 h-5 w-5 text-center items-center flex justify-center">2</span>
-                            <span>Scan this QR code and send {maxRedeemableToken > 1 ? `up to ${maxRedeemableToken} ${tokenMetadata?.ticker || tokenBalance?.name || 'token'}` : `1 ${tokenMetadata?.ticker || tokenBalance?.name || 'token'}`}.</span>
-
-                        </div>
-                        <div className="flex gap-2 items-center">
-                            <span className="bg-primary/5 border border-primary/20 text-primary rounded-full p-4 h-5 w-5 text-center items-center flex justify-center">3</span>
-                            <span>Confirm the redemption. This page will update automatically with your discount applied.</span>
-                        </div>
-                    </div>
-                </TabsContent>
-            </Tabs>
-        </div>
+                    </TabsContent>
+                </Tabs>
+            </DialogContent>
+        </Dialog>
     )
 }

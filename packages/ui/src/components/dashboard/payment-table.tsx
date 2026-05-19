@@ -39,12 +39,12 @@ const getColumns = () => {
             cell: ({ row }) => {
                 return (
                     <div className="flex gap-1">
-                        <span className={row.original.redeemTx ? 'line-through' : ''}>
-                            {Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(row.original.amount)}
-                        </span>
-                        {row.original.redeemAmount && <span>
+                        {row.original.redeemAmount && <span className={row.original.redeemTx ? 'line-through' : ''}>
                             {Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(row.original.amount + row.original.redeemAmount)}
                         </span>}
+                        <span>
+                            {Intl.NumberFormat(navigator.language || "en-US", { style: 'currency', currency: 'USD' }).format(row.original.amount)}
+                        </span>
                     </div>
                 )
             }

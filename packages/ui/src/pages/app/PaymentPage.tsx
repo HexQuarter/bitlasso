@@ -1,24 +1,15 @@
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
-import { Client, fetchEarnRequest, fetchPaymentRequest, fetchSettingsByPubkey, getBitcoinPrice, parseLightningInvoiceAmount, RelayConfig, subscribePayment, subscribeRedeem, type PaymentRequest } from "@bitlasso/sdk"
-import { formatTime } from "@/lib/utils"
-import { CheckCircle, Copy, GiftIcon, Wallet } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { fetchPaymentRequest, fetchSettingsByPubkey, getBitcoinPrice, RelayConfig, subscribeRedeem, type PaymentRequest } from "@bitlasso/sdk"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "react-router"
 
-import { AddressPurpose, getProviders, request } from "sats-connect";
 import { toast } from "sonner"
 
 import LogoPng from '../../../public/logo.svg'
-import QRCode from "react-qr-code"
 
-import { LoyaltySection } from "@/components/payment/loyalty-section"
-import { PaidRequest } from "@/components/payment/paid-request"
-import { Slider } from "@/components/ui/slider"
-import { Input } from "@/components/ui/input"
-
-type PaymentConfirmation = { transaction: string, settlementMode: string, btcAmount: number }
+import { PaymentCertificate } from "@/components/payment/payment-certificate"
+import { PaymentForm, type PaymentConfirmation } from "@/components/payment/payment-form"
 
 export const PaymentPage: React.FC = () => {
 
@@ -102,7 +93,7 @@ export const PaymentPage: React.FC = () => {
 
     return (
         <div className="bg-gray-50 min-h-screen">
-            <div className="lg:w-1/2 mx-auto">
+            <div className="">
                 {loading &&
                     <div className="flex min-h-screen">
                         <div className='m-auto flex flex-col items-center gap-2'>
@@ -118,15 +109,17 @@ export const PaymentPage: React.FC = () => {
                 }
 
                 {!loading && fetchError &&
-                    <ErrorState error={fetchError} errorDetails={fetchErrorDetails} />
+                    <div className="lg:w-1/2 mx-auto">
+                        <ErrorState error={fetchError} errorDetails={fetchErrorDetails} />
+                    </div>
                 }
 
-                {!loading && !fetchError && paymentRequest && paymentRequest.settleTx &&
-                    <PaidRequest paymentRequest={paymentRequest} btcAmount={btcAmount} btcAmountDate={btcAmountDate} />
+                {!loading && !fetchError && paymentRequest && paymentRequest.settleTx && btcAmountDate &&
+                    <PaymentDetails state={"settled"} relayConfig={relayConfig} paymentRequest={paymentRequest} btcAmount={btcAmount} btcAmountDate={btcAmountDate} />
                 }
 
                 {!loading && !fetchError && paymentRequest && !paymentRequest.settleTx &&
-                    <PendingPaymentState relayConfig={relayConfig} paymentRequest={paymentRequest} handleConfirmation={handleConfirmation} />
+                    <PaymentDetails state={"pending"} relayConfig={relayConfig} paymentRequest={paymentRequest} handleConfirmation={handleConfirmation} />
                 }
             </div>
         </div>
@@ -158,140 +151,26 @@ const ErrorState: React.FC<{ error: string, errorDetails: string }> = ({ error, 
     </div>
 )
 
-const PendingPaymentState: React.FC<{
-    relayConfig: RelayConfig,
-    paymentRequest: PaymentRequest,
-    handleConfirmation: (confirmation: PaymentConfirmation) => void,
-}> = ({ relayConfig, paymentRequest, handleConfirmation }) => {
-
-    const [remainingRefreshTime, setRemainingRefreshTime] = useState(0)
-    const [btcAmount, setBtcAmount] = useState(0)
-    const [lightningInvoice, setLightningInvoice] = useState<string>(paymentRequest.lightningInvoice)
-
-    const [redeemDetails, setRedeemDetails] = useState<{ redeemAmount: number, redeemTransaction: string } | undefined>(paymentRequest.redeemTx ? { redeemAmount: paymentRequest.redeemAmount as number, redeemTransaction: paymentRequest.redeemTx as string } : undefined)
-    const [availableWallet, setAvailableWallet] = useState<boolean>(false)
-
-    const [tokenMetadata, setTokenMetadata] = useState<{ ticker: string } | undefined>(undefined)
-
-    useEffect(() => {
-        const response = getProviders()
-        if (response.length > 0) {
-            setAvailableWallet(true)
-        }
-
-        fetchEarnRequest(relayConfig, paymentRequest.id).then((earnRequest) => {
-            if (earnRequest) {
-                setSparkAddress(earnRequest.sparkAddress)
-            }
-        })
-
-        void (() => {
-            fetch(`https://api.sparkscan.io/v1/tokens/${paymentRequest.tokenId}`)
-                .then(async (r) => {
-                    if (r.ok) {
-                        const { metadata } = await r.json()
-                        if (metadata) {
-                            setTokenMetadata({ ticker: metadata.ticker })
-                        }
-                    }
-                })
-                .catch(console.error)
-        })()
-
-        subscribePayment(relayConfig, paymentRequest.id, (transaction: string, settlementMode: string) => {
-            handleConfirmation({ transaction, settlementMode, btcAmount })
-        })
-    }, [])
-
-    useEffect(() => {
-        if (remainingRefreshTime > 0) {
-            new Promise((r) => setTimeout(r, 1000)).then(() => setRemainingRefreshTime(prev => prev - 1))
-        }
-        else {
-            refreshBtc(paymentRequest.id)
-        }
-    }, [paymentRequest, remainingRefreshTime])
-
-    const refreshBtc = async (paymentRequestId: string) => {
-        const api = new Client({ dev: import.meta.env.DEV });
-        const response = await api.getPaymentPrice(paymentRequestId)
-        if (response) {
-            const { btc, endtime, lightningInvoice } = response
-            setBtcAmount(btc)
-            if (lightningInvoice) {
-                setLightningInvoice(lightningInvoice)
-            }
-
-            const dateNow = Date.now()
-            const remainingSecs = Math.floor((endtime - dateNow) / 1000)
-            setRemainingRefreshTime(remainingSecs)
-            return remainingSecs
-        } else {
-            const btcFromInvoice = parseLightningInvoiceAmount(lightningInvoice)
-            if (!btcFromInvoice) {
-                return
-            }
-
-            setBtcAmount(btcFromInvoice)
-            setRemainingRefreshTime(0)
-        }
+type PaymentDetailsProps =
+    { state: "pending", relayConfig: RelayConfig, paymentRequest: PaymentRequest, handleConfirmation: (confirmation: PaymentConfirmation) => void }
+    | {
+        state: "settled",
+        relayConfig: RelayConfig,
+        paymentRequest: PaymentRequest,
+        btcAmount: number
+        btcAmountDate: Date
     }
 
-    const copy = (address: string) => {
-        navigator.clipboard.writeText(address)
-        const toastId = toast.info('Address copied into the clipboard')
-        setTimeout(() => {
-            toast.dismiss(toastId)
-        }, 2000)
-        setCopied(true)
-    }
+const PaymentDetails: React.FC<PaymentDetailsProps> = (props) => {
+    const { state, relayConfig, paymentRequest } = props
 
-    const maxRedeemable = !redeemDetails ? paymentRequest.amount * (paymentRequest.discountRate / 100) : 0
-    const maxRedeemableToken = Math.floor(Math.max(0, maxRedeemable))
-    const [copied, setCopied] = useState(false);
-    const [openedLoyalty, setOpenLoyalty] = useState(false)
-
-    const [sparkAddress, setSparkAddress] = useState<undefined | string>(undefined)
-    const [connectLoading, setConnectLoading] = useState(false)
-
-    const handleSparkAddress = (value: string) => {
-        setSparkAddress(value)
-    }
-
-    useEffect(() => {
-        if (!sparkAddress || sparkAddress == '') return
-
-        setTimeout(async () => {
-            try {
-                const client = new Client({ dev: import.meta.env.DEV });
-                await client.publishEarnRequest(
-                    paymentRequest.id,
-                    sparkAddress
-                );
-            } catch (error) {
-                console.error("Failed to publish earn request:", error);
-            }
-        }, 500); // Adjust delay as needed
-    }, [sparkAddress])
-
-    const connectWallet = async () => {
-        setConnectLoading(true)
-        const data = await request('getAccounts', { purposes: [AddressPurpose.Spark] });
-        setConnectLoading(false)
-        if (data.status !== 'success') {
-            return;
-        }
-        const address = data.result.at(0)?.address;
-        if (!address) {
-            return;
-        }
-
-        setSparkAddress(address);
-    }
+    const redeemDetails = useMemo(() => {
+        return paymentRequest.redeemTx ? { redeemAmount: paymentRequest.redeemAmount as number, redeemTransaction: paymentRequest.redeemTx as string } : undefined
+    }, [paymentRequest])
 
     return (
-        <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-6">
-            <div className="w-full max-w-md">
+        <div className="min-h-screen bg-neutral-50 flex mx-auto md:flex-row flex-col 2xl:w-1/2 gap-10">
+            <div className="flex flex-col gap-5 lg:w-2/4 p-6 ">
                 <div className='flex items-center gap-2 hover:cursor-pointer justify-center mb-10' onClick={() => window.open('/?utm_source=bitlasso.xyz&utm_medium=payment_page', 'blank')} >
                     <img src={LogoPng} className='w-8' />
                     <div className='font-serif tracking-tighter text-foreground flex items-center'>
@@ -300,136 +179,57 @@ const PendingPaymentState: React.FC<{
                         </p>
                     </div>
                 </div>
-                <Card className="rounded-2xl shadow-sm border bg-white p-0 gap-0 shadow-xs not-sm:rounded-none">
-                    <CardHeader className='flex flex-col p-0! md:items-center justify-between border-b border-border/60 p-4!'>
-                        <span className="text-xs text-neutral-400">{paymentRequest.orgDetails?.name ? 'Requesting payment from' : 'Payment request'}</span>
-                        <h1 className="text-lg text-muted-foreground">{paymentRequest.orgDetails ? paymentRequest.orgDetails.name : ''}</h1>
-                    </CardHeader>
-                    <CardContent className="p-6 space-y-6">
-                        {paymentRequest.items && paymentRequest.items.length > 0 ? (
-                            <div className="space-y-3">
-                                <div className="text-sm text-neutral-500 text-center">Items</div>
-                                <div className="space-y-2 border border-border/20 rounded-lg p-3 bg-gray-50 shadow">
-                                    {paymentRequest.items.map((item, index) => (
-                                        <div key={index} className="flex justify-between items-start pb-2 last:pb-0 last:border-b-0 border-b border-neutral-200">
-                                            <div className="flex-1">
-                                                <p className="text-sm font-medium text-neutral-900">{item.title}</p>
-                                                {item.description && <p className="text-xs text-muted-foreground/80">{item.description}</p>}
-                                            </div>
-                                            <p className="text-sm font-semibold text-neutral-900 ml-2">
-                                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(item.amount)}
-                                            </p>
-                                        </div>
-                                    ))}
-                                </div>
+                <div>
+                    <span className="text-xs text-neutral-400 uppercase tracking-widest font-light">{paymentRequest.orgDetails ? 'Pay to' : ''}</span>
+                    <div className="text-2xl text-black font-serif break-all flex flex-col">
+                        <span>{paymentRequest.orgDetails ? paymentRequest.orgDetails.name : ''}</span>
+                    </div>
+                </div>
+                <hr />
+                <div className="flex flex-col gap-5">
+                    <span className="text-xs text-neutral-400 uppercase tracking-widest font-light">Items</span>
+                    {paymentRequest.items && paymentRequest.items.map((item, index) => (
+                        <div key={index} className="flex justify-between items-start bg-white rounded-lg p-4 border border-primary/40 gap-5">
+                            <div className="flex flex-col gap-1">
+                                <p className="font-medium text-black">{item.title}</p>
+                                {<p className="text-muted-foreground/80 text-sm">{item.description || 'No description'}</p>}
                             </div>
-                        ) : (
-                            paymentRequest.description && paymentRequest.description != '' && <div className="space-y-1 text-center">
-                                <div className="text-sm text-neutral-500">Description</div>
-                                <div className="text-sm italic">{paymentRequest.description || ''}</div>
-                            </div>
-                        )}
-                        <div className="space-y-1 text-center">
-                            <div className="text-sm text-neutral-500">Amount</div>
-                            <div className="text-3xl font-semibold">
-                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount * (paymentRequest.vat && paymentRequest.vat > 0 ? 1 + (paymentRequest.vat / 100) : 1))}
-                            </div>
-                            <div className="flex justify-center items-center gap-2">
-                                <span className="text-xs text-neutral-400">Net: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount)}</span>
-                                <span className="text-xs text-neutral-400">{
-                                    paymentRequest.vat !== undefined
-                                        ? `VAT: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount * (1 + (paymentRequest.vat / 100)))} (${paymentRequest.vat}%)`
-                                        : 'VAT not applied'
-                                }</span>
-                            </div>
-                            <div className="text-xs text-neutral-500 flex justify-center flex-col">
-                                {btcAmount > 0 &&
-                                    `${Math.floor(btcAmount * 100_000_000).toLocaleString()} sats • ${btcAmount} BTC`
-                                }
-                                {btcAmount == 0 && <span className="flex justify-center items-center gap-2"><Spinner /> Fetch Bitcoin price</span>}
-                                {remainingRefreshTime !== undefined && remainingRefreshTime > 0 &&
-                                    <div className="flex flex-col gap-2 mt-5 w-1/2 justify-center mx-auto">
-                                        <div className="flex items-center gap-2">
-                                            <p className="text-xs text-muted-foreground">Price refreshes in {formatTime(remainingRefreshTime)}</p>
-                                        </div>
-                                        <Slider max={60 * 5} min={0} value={[remainingRefreshTime > 0 ? 60 * 5 - remainingRefreshTime : 0]} className="" withThumb={false} />
-                                    </div>
-                                }
-                            </div>
+                            <p className="font-semibold black ml- 2">
+                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(item.amount)}
+                            </p>
                         </div>
-
-                        {redeemDetails &&
-                            <div className="text-center space-y-1">
-                                <p className="text-sm text-neutral-500">Loyalty program </p>
-                                <div className="flex flex-col gap-2 text-center">
-                                    <p className="">
-                                        Redemption of {" "}
-                                        <span className="font-semibold">{redeemDetails?.redeemAmount || 0} {tokenMetadata ? tokenMetadata.ticker : 'token'} (= ${redeemDetails?.redeemAmount || 0} off)</span>.
-                                    </p>
-                                    <a className="text-xs text-neutral-400" href={`https://sparkscan.io/tx/${redeemDetails.redeemTransaction}`} target="_blank">
-                                        Check out transaction
-                                    </a>
-                                </div>
-                            </div>}
-
-                        <div className="flex justify-center">
-                            <div className="w-48 h-48 bg-neutral-100 rounded-xl flex items-center justify-center text-neutral-400 text-xs text-center p-4 shadow-2xl">
-                                <QRCode value={lightningInvoice} />
-                            </div>
+                    ))}
+                </div>
+                <hr />
+                <div className="flex flex-col gap-2">
+                    <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Subtotal</span>
+                        <span className="text-black font-semibold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount)}</span>
+                    </div>
+                    {redeemDetails && <div className="flex justify-between text-sm">
+                        <div className="flex flex-col">
+                            <span className="text-muted-foreground">Applied discount</span>
+                            <a className="text-xs text-neutral-400 italic hover:text-primary" href={`https://sparkscan.io/tx/${redeemDetails?.redeemTransaction}`} target="_blank">
+                                See transaction
+                            </a>
                         </div>
+                        <span className="text-black font-semibold">-{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(redeemDetails?.redeemAmount || 0)}</span>
+                    </div>}
+                    <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">VAT ({paymentRequest.vat}%)</span>
+                        <span className="text-black font-semibold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount * (paymentRequest.vat / 100))}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold">
+                        <span className="">Total due</span>
+                        <span className="text-black font-semibold text-primary text-lg">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentRequest.amount * (paymentRequest.vat && paymentRequest.vat > 0 ? 1 + (paymentRequest.vat / 100) : 1))}
+                        </span>
+                    </div>
+                </div>
 
-                        {/* Invoice */}
-                        <div className="space-y-2">
-                            <div className="text-xs text-neutral-500">Scan or copy to pay the invoice</div>
-                            <div className="flex items-center justify-between bg-neutral-50 border rounded-lg px-3 py-2">
-                                <div className="text-xs font-mono text-neutral-700 truncate">
-                                    {lightningInvoice}
-                                </div>
-                                <button
-                                    onClick={() => copy(lightningInvoice)}
-                                    className="text-neutral-500 hover:text-black"
-                                >
-                                    {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
-                                </button>
-                            </div>
-                            {copied && (
-                                <div className="text-xs text-green-600">Copied to clipboard</div>
-                            )}
-                        </div>
-
-                        {paymentRequest.discountRate > 0 &&
-                            <div className="flex flex-col gap-2 bg-gray-50 rounded-lg border border-border/40 p-5">
-                                <p className="font-semibold">Earn BITL</p>
-                                <p className="text-sm text-muted-foreground">Every dollar you pay mints 1 BITL. <br />Spend it on discounts at any BitLasso merchant.</p>
-                                <Input placeholder="Enter your Spark address to receive 1 BIT: spark1..." className="bg-white" value={sparkAddress} onChange={(e) => handleSparkAddress(e.target.value)} />
-                                {availableWallet && <Button variant='outline' disabled={connectLoading} onClick={() => connectWallet()}>{connectLoading ? <Spinner /> : <span className="flex gap-2 items-center">Connect XVerse wallet <Wallet /></span>}</Button>}
-                                {!availableWallet && <p className="text-xs text-center">Don't have a Spark wallet, get <a href="https://xverse.app" target="_blank" className="text-primary hover:underline">XVerse</a></p>}
-                            </div>
-                        }
-                        {/* CTA */}
-                        <div className="flex gap-2">
-                            <Button className="flex-1" onClick={() => window.open("lightning:" + lightningInvoice)}>
-                                Pay with Lightning
-                            </Button>
-
-                            {maxRedeemableToken > 0 && !openedLoyalty &&
-                                <Button variant={'outline'} className="flex-1" onClick={() => setOpenLoyalty(true)}><GiftIcon className="text-primary" /> Save up to {paymentRequest.discountRate}%</Button>
-                            }
-                        </div>
-
-                        {openedLoyalty &&
-                            <LoyaltySection
-                                paymentRequest={paymentRequest}
-                                handleRedeem={((transaction, amount) => setRedeemDetails({ redeemAmount: amount, redeemTransaction: transaction }))}
-                                maxRedeemableToken={maxRedeemableToken}
-                                availableWallet={availableWallet}
-                            />}
-                    </CardContent>
-                    <CardFooter className="justify-center flex flex-col gap-5 pb-2" >
-                        <p className="text-xs text-neutral-400">Encounter any problem? <a href="mailto:bitlasso@hexquarter.com" target="_blank" className="underline">Contact us</a></p>
-                        <p className="text-xs text-neutral-400">By <a href="https://hexquarter.com?utm_source=bitlasso.xyz&utm_medium=payment_page" target="_blank" className="underline">HexQuarter</a> - All rights reserved © {new Date().getFullYear()}</p>
-                    </CardFooter>
-                </Card>
+            </div>
+            <div className="flex flex-col lg:w-2/4 bg-white p-6 gap-10 rounded-lg my-10 border-border/40 border shadow-lg">
+                {state == 'pending' && <PaymentForm relayConfig={relayConfig} paymentRequest={paymentRequest} handleConfirmation={props.handleConfirmation} />}
+                {state == 'settled' && <PaymentCertificate paymentRequest={paymentRequest} btcAmountDate={props.btcAmountDate} />}
             </div>
         </div>
     )
