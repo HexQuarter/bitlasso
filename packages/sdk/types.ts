@@ -273,7 +273,6 @@ export type NotificationSettings = {
 
 export type UserSettings = {
     sparkIdentityKey?: string
-    redeemTokenId?: string,
     notification?: NotificationSettings,
     org?: OrgSettings
 }

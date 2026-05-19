@@ -49,27 +49,9 @@ export const SettingsPage = () => {
 
             if (!settings) {
                 settings = { sparkIdentityKey: wallet.identityPubkey } as UserSettings
-                try {
-                    const tokenMetadata = await wallet.getTokenMetadata()
-                    if (tokenMetadata) {
-                        const identifier = tokenMetadata?.identifier
-                        settings.redeemTokenId = identifier
-                    }
-                }
-                catch (_e) { }
             }
             if (!settings.sparkIdentityKey) {
                 settings.sparkIdentityKey = wallet.identityPubkey
-            }
-            if (!settings.redeemTokenId) {
-                try {
-                    const tokenMetadata = await wallet.getTokenMetadata()
-                    if (tokenMetadata) {
-                        const identifier = tokenMetadata?.identifier
-                        settings.redeemTokenId = identifier
-                    }
-                }
-                catch (_e) { }
             }
             await registerSettings(relayConfig, wallet, settings)
 
