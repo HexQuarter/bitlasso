@@ -57,7 +57,7 @@ export function HeroSection() {
                 <div className="animate-fade-up opacity-0 delay-200 absolute 2xl:right-0 right-40 top-1/2 hidden -translate-y-1/2 lg:block lg:w-1/3">
                     <div className="absolute overflow-hidden rounded-2xl border border-border/20 shadow-2xl z-110 top-20 left-30 w-1/2 ">
                         <img
-                            src="/payment.png"
+                            src="/payment_request_2.png"
                             alt="Bitlasso Dashboard Preview"
                             className=""
                         />

@@ -3,7 +3,7 @@ import { shortenAddress } from "@/lib/utils"
 
 import { useMemo } from "react"
 
-import { Copy, ExternalLink } from "lucide-react"
+import { CheckCircle2, Copy, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 
 export const PaymentCertificate: React.FC<{ paymentRequest: PaymentRequest, btcAmountDate: Date }> = ({ paymentRequest, btcAmountDate }) => {
@@ -21,6 +21,13 @@ export const PaymentCertificate: React.FC<{ paymentRequest: PaymentRequest, btcA
         <div className="flex flex-col gap-2">
             <span className="text-xs text-neutral-400 uppercase tracking-widest font-light">Payment certificate</span>
             <div className="text-sm flex flex-col gap-5 mt-10">
+                <div className="flex flex-col gap-2 py-5 items-center">
+                    <div className="flex items-center p-3 bg-green-600/20 rounded-full"><CheckCircle2 className="h-6 w-6 text-green-800" /></div>
+                    <p className="font-semibold">
+                        The payment has been settled.
+                    </p>
+                    <p className="italic mt-5 text-xs">Payment details below:</p>
+                </div>
                 <div className="grid lg:grid-cols-2 gap-5">
                     <div className="flex flex-col gap-2">
                         <p className="text-sm text-neutral-500">

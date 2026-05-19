@@ -7,7 +7,7 @@ import { useInView } from "@/hooks/use-in-view"
 
 import CreatePaymentRequest from '../../../../public/create_payment_request.png'
 import Carbon from '../../../../public/carbon.png'
-import PaymentCertificate from '../../../../public/payment_cert.png'
+import PaymentCertificate from '../../../../public/payment_cert_2.png'
 import Redeeem from '../../../../public/redeem2.jpg'
 
 const steps = [
