@@ -6,7 +6,7 @@ import { HDKey } from "@scure/bip32";
 
 import type { Wallet } from "./wallet.js";
 import type { OrgSettings, SDKConfig, UserSettings, PaymentRequest } from "./types.js";
- 
+
 const pool = new SimplePool({
     enablePing: true,
     enableReconnect: true
@@ -19,9 +19,11 @@ export class RelayConfig {
     constructor(config: SDKConfig = {}) {
         this.backendRelay = config.dev ? "ws://localhost:4000/nostr" : "wss://api.bitlasso.xyz/nostr"
         this.backupRelays = [
-            "wss://relay.damus.io",
-            "wss://relay.primal.net",
-            "wss://nos.lol"
+            'wss://relay.nostrcheck.me',
+            'wss://relay.nostriches.club',
+            'wss://nos.lol',
+            'wss://relay.damus.io',
+            'wss://relay.primal.net'
         ]
     }
 
@@ -335,7 +337,7 @@ export const fetchEncryptedPassphrase = async (relayConfig: RelayConfig, pubkey:
 }
 
 export const storeEncryptedPassphrase = async (
-    relayConfig: RelayConfig, 
+    relayConfig: RelayConfig,
     nostrConnection: NostrConnection,
     encryptedPassphrase: string
 ): Promise<string> => {
