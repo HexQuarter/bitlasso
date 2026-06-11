@@ -17,10 +17,6 @@ import { posthog } from "./posthog";
 const PORT = process.env.PORT || 3000;
 const INTERVAL_PENDING_PAYMENTS_CONF = Number(process.env.INTERVAL_PENDING_PAYMENTS_CONF) || 5000
 
-if (!process.env['SPARK_MNEMONIC']) {
-  throw new Error('SPARK_MNEMONIC env variable is required')
-}
-
 if (!process.env['NSEC']) {
   throw new Error('NSEC env variable is required')
 }
