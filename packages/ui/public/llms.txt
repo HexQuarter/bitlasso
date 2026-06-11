@@ -53,11 +53,6 @@ Bitlasso transforms one-time Bitcoin payments into automated, recurring revenue 
 - Redeem on future invoices
 - Native recurring revenue mechanism
 
-### Flat-Fee Pricing
-- ~$1 per checkout
-- 0% revenue share
-- No subscriptions
-
 ### Automation & Integration
 - API for invoice and checkout generation
 - Webhooks for real-time payment events

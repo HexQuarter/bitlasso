@@ -159,9 +159,9 @@ export function WhyBitlassoSection() {
                   <div className="flex flex-col gap-5">
                     {[
                       {
-                        title: "Flat Pricing",
+                        title: "Free",
                         description:
-                          "No percentage-based revenue cuts.",
+                          "No revenue cuts.",
                         icon: Coins,
                       },
                       {

@@ -3,14 +3,13 @@ import { Receive } from "./receive"
 import { BTCAsset, Send, type Asset } from "./send"
 import type { Addresses } from "@/hooks/use-wallet"
 import type { SparkPayment, Wallet } from "@bitlasso/sdk"
-import { AlertTriangleIcon, ExternalLink, MoreHorizontal, Wallet2 } from "lucide-react"
+import { ExternalLink, MoreHorizontal, Wallet2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu"
 import { Button } from "../ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "../ui/chart"
 import { Area, AreaChart, CartesianGrid } from "recharts"
 import { useMemo } from "react"
 import { Skeleton } from "../ui/skeleton"
-import { Alert, AlertDescription, AlertTitle } from "../ui/alert"
 import { Spinner } from "../ui/spinner"
 
 type Token = {
@@ -120,17 +119,6 @@ export const WalletCard: React.FC<Props> = ({ isSyncing, satsBalance, tokens, ad
                          )}
                      </span>
                 </div>
-                {satsBalance == 0 &&
-                    <Alert className="py-5">
-                        <AlertTriangleIcon />
-                        <AlertTitle>Adds funds to your wallet before emit payment requests</AlertTitle>
-                        <AlertDescription className="flex flex-col gap-0 mt-5">
-                            <p>Click on <span className="text-primary">Receive</span> to display wallet address.</p>
-                            <p>Then start a Bitcoin transfer to your <strong>BitLasso</strong> wallet.</p>
-                            <p>Once credited, you will be able to create payment request for ~$1</p>
-                        </AlertDescription>
-                    </Alert>
-                }
                 <div className="flex gap-3">
                     {satsBalance > 0 && <Send assets={assets} price={price} onSend={onSend} wallet={wallet} />}
                     <Receive addresses={addresses} />

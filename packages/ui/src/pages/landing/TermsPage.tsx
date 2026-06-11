@@ -54,15 +54,6 @@ export const TermsPage = () => {
                                 BitLasso cannot recover lost keys or restore access to funds.</p>
                         </article>
                         <article className="flex flex-col gap-2">
-                            <h2 className="font-serif text-2xl">5. Fees and billing</h2>
-                            <p className="text-muted-foreground">
-                                BitLasso charges a flat fee per payment request generated through the platform, as specified on our pricing page.
-                                <br />Fees are subject to change with notice.
-                                <br />Current founder pricing and any promotional rates are provided at BitLasso's discretion and may be modified upon reasonable notice.
-                                All fees are non-refundable unless otherwise stated in writing.
-                            </p>
-                        </article>
-                        <article className="flex flex-col gap-2">
                             <h2 className="font-serif text-2xl">6. Acceptable use</h2>
                             <p className="text-muted-foreground">You agree to use the Service only for lawful purposes and in compliance with all applicable laws and regulations. You must not:</p>
                             <ul className="text-muted-foreground list-disc ml-10">
@@ -122,13 +113,7 @@ export const TermsPage = () => {
                             <h2 className="font-serif text-2xl">12. Limitation of liability</h2>
                             <p className="text-muted-foreground">
                                 TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, HEXQUARTER AND ITS AFFILIATES, OFFICERS, DIRECTORS, EMPLOYEES, AND AGENTS SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING LOSS OF PROFITS, DATA, OR GOODWILL, ARISING FROM OR RELATED TO YOUR USE OF THE SERVICE OR INABILITY TO ACCESS FUNDS, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
-                                <br />IN NO EVENT SHALL BITLASSO'S TOTAL LIABILITY EXCEED THE FEES PAID BY YOU TO BITLASSO IN THE TWELVE MONTHS PRECEDING THE CLAIM.
-                            </p>
-                        </article>
-                        <article className="flex flex-col gap-2">
-                            <h2 className="font-serif text-2xl">13. Indemnification</h2>
-                            <p className="text-muted-foreground">
-                                You agree to indemnify, defend, and hold harmless HexQuarter and its affiliates, officers, directors, employees, and agents from any claims, liabilities, damages, losses, and expenses (including reasonable legal fees) arising out of or related to your use of the Service, your breach of these Terms, or your violation of any applicable law or third-party rights.
+                                <br />IN NO EVENT SHALL BITLASSO'S W LIABILITY WILL BE INGAGE, AS IT IS OFFERED FREELY.
                             </p>
                         </article>
                         <article className="flex flex-col gap-2">

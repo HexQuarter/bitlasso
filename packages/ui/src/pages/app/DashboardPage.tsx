@@ -7,14 +7,14 @@ import { WalletCard } from "@/components/dashboard/wallet-card"
 import { PaymentRequestForm, type PaymentRequestData } from "@/components/dashboard/payment-request"
 import { PaymentTable, type PaymentRequestItem } from "@/components/dashboard/payment-table"
 import { type Asset } from "@/components/dashboard/send"
-import { addTokenBalance, send } from "@/lib/utils"
+import { send } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
-import { AlertTriangleIcon, FileText, MoreHorizontal, Plus, Wallet2, Zap } from "lucide-react"
+import { AlertTriangleIcon, FileText, MoreHorizontal, Wallet2, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { RevenueChart } from "@/components/dashboard/revenue-chart"
 
-import { Client, type Wallet, type BreezPayment, type SparkPayment, type TokenBalanceMap, type TokenMetadata, fetchSettings, fetchPaymentsRequest, subscribePayment, subscribeRedeem, type OrgSettings, RelayConfig } from "@bitlasso/sdk"
+import { Client, type Wallet, type BreezPayment, type SparkPayment, type TokenBalanceMap, fetchSettings, fetchPaymentsRequest, subscribePayment, subscribeRedeem, type OrgSettings, RelayConfig } from "@bitlasso/sdk"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useNavigate } from "react-router"
 import { IconMessageDollar } from "@tabler/icons-react"
@@ -240,7 +240,6 @@ export const DashboardPage = () => {
             void (() => posthog?.capture('payment_request_created', {
                 amount_usd: data.items.reduce((sum, item) => sum + item.amount, 0),
                 discount_rate: data.discountRate,
-                paid_with_credits: !data.feeSats,
             }))()
             toast.success('Payment request created successfully')
         }
@@ -253,13 +252,6 @@ export const DashboardPage = () => {
     const handleSend = async (method: 'spark' | 'lightning' | 'bitcoin', asset: Asset, amount: number, recipient: string) => {
         if (!wallet) return
         await send(wallet, asset, amount, recipient, method)
-    }
-
-    const handlePurchaseCredits = async (amount: number) => {
-        if (!settings) return
-
-        const tokenMetadata = await wallet?.getTokenMetadata(settings.tokenAddress) as TokenMetadata
-        setTokenBalances((prev) => addTokenBalance(prev, tokenMetadata, amount))
     }
 
     const tokensData: { id: string, name: string, symbol: string, amount: number }[] = useMemo(() => {
@@ -291,13 +283,6 @@ export const DashboardPage = () => {
     const pendingPayments = useMemo(() => {
         return paymentRequests.filter(p => p.settleTx === undefined).length
     }, [paymentRequests])
-
-    const creditBalance = useMemo(() => {
-        if (!settings) return 0
-        const token = tokensData.find(t => t.id == settings?.tokenAddress)
-        if (!token) return 0
-        return token.amount
-    }, [tokensData])
 
     return (
         <div className="flex flex-col w-full gap-10">
@@ -424,8 +409,7 @@ export const DashboardPage = () => {
                                 <p className="border-primary/40 flex gap-2 font-serif font-light text-2xl">Payment requests</p>
                                 {paymentRequestLoading && <Skeleton className="h-10 w-40" />}
                                 {!paymentRequestLoading && settings && <CardAction className='w-full lg:w-auto'>
-                                    {satsBalance > 0n && settings && <PaymentRequestForm settings={settings} orgSettings={orgSettings} onSubmit={handlePaymentRequest} price={price} creditBalance={creditBalance} satsBalance={Number(satsBalance)} onPurchaseCredits={handlePurchaseCredits} />}
-                                    {satsBalance == 0n && <Button className="flex gap-2 has-[>svg]:pr-5 bg-primary hover:bg-black w-full lg:w-auto" disabled><Plus className="h-4 w-4" />New payment request</Button>}
+                                    <PaymentRequestForm settings={settings} orgSettings={orgSettings} onSubmit={handlePaymentRequest} price={price} />
                                 </CardAction>}
                             </div>
                         </CardTitle>

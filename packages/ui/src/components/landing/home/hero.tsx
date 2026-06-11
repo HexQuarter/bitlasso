@@ -124,8 +124,7 @@ export function HeroSection() {
                             [
                                 { value: 100, suffix: "%", label: "Keep your revenue" },
                                 { value: 10, prefix: "<", suffix: "s", label: "Lightning settlement" },
-                                { value: 1, prefix: "$", suffix: "", label: "No percentage cuts" },
-                                { value: 0, suffix: "%", label: "Without subscription" }
+                                { value: 0, prefix: "$", suffix: "", label: "Platform fee" },
                             ]
                                 .map((stat) => (
                                     <div key={stat.label}>

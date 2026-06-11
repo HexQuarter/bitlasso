@@ -33,7 +33,7 @@ export function CtaSection() {
           </div>
 
           <p className={`mt-8 text-[13px] tracking-wide text-muted-foreground/50 transition-all duration-1000 delay-500 ${isInView ? "opacity-100" : "opacity-0"}`}>
-            Create wallet, then payment requests at ~$1 per checkout.
+            Create wallet and payment requests.
           </p>
         </div>
       </div>

@@ -28,7 +28,28 @@ export const SettingsPage = () => {
     const [mnemonic, setMnemonic] = useState<string[]>([])
     const [saveNotifLoading, setSaveNotifLoading] = useState(false)
     const [hasSecuredMnemonic, setHashSecureMnemonic] = useState(localStorage.getItem('BITLASSO_SECURED_MNEMONIC') || 'false')
-    const [jsSnippet, setJsSnippet] = useState('')
+    const [jsSnippet, setJsSnippet] = useState(`import { initializeWallet, Client } from '@bitlasso/sdk'
+
+const wallet = await initializeWallet({
+    seed: { type: 'mnemonic', mnemonic: '' },
+    breezApiKey: 'your-breez-api'
+})
+
+// Your payment request data
+const paymentRequest = {
+    items: [
+      {
+        title: 'Consulting session',
+        description: '1 hour of consulting',
+        amount: 1000
+      }
+    ]
+}
+
+// Generate NIP-98 authentication
+const api = new Client()
+const response = await client.publishPaymentRequest(wallet, paymentRequest)
+`)
 
     const [orgSettings, setOrgSettings] = useState<OrgSettings>({ name: '', vat: 0.0, registrationNumber: '' })
     const [orgSettingSaveLoading, setOrgSettingsSaveLoading] = useState(false)
@@ -67,29 +88,6 @@ export const SettingsPage = () => {
                     setNostrBackup(nostrConnection.pubkey !== wallet.nostrConnection.pubkey)
                 }
             }
-
-            setJsSnippet(`import { initializeWallet, Client } from '@bitlasso/sdk'
-
-const wallet = await initializeWallet({
-    seed: { type: 'mnemonic', mnemonic: '' },
-    breezApiKey: 'your-breez-api'
-})
-
-// Your payment request data
-const paymentRequest = {
-    items: [
-      {
-        title: 'Consulting session',
-        description: '1 hour of consulting',
-        amount: 1000
-      }
-    ]
-}
-
-// Generate NIP-98 authentication and L402 payment
-const api = new Client()
-const response = await client.publishPaymentRequest(wallet, paymentRequest)
-`)
         }
 
         fetchData()
@@ -457,9 +455,8 @@ const response = await client.publishPaymentRequest(wallet, paymentRequest)
                                             <div className="flex flex-col gap-2">
                                                 <Label className="text-xs text-muted-foreground font-mono">Create payment request programmatically</Label>
                                                 <p className="text-sm text-muted-foreground">
-                                                    Our API uses <a href="https://github.com/nostr-protocol/nips/blob/master/98.md" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">NIP-98</a> authentication
-                                                    and <a href="https://github.com/lightning/blips/blob/master/blip-0010.md" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">L402</a> payment protocol.
-                                                    All requests must be signed with your Nostr private key, and API calls may incur a small fee of $1 or be paid using your Spark token credits.
+                                                    Our API uses <a href="https://github.com/nostr-protocol/nips/blob/master/98.md" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">NIP-98</a> authentication.
+                                                    All requests must be signed with your Nostr private key
                                                 </p>
                                             </div>
                                             <div className="flex flex-col gap-2">

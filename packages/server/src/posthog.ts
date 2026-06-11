@@ -1,0 +1,9 @@
+import { PostHog } from 'posthog-node'
+
+export const posthog = new PostHog(
+    process.env['POSTHOG_KEY'] as string,
+    {
+        host: process.env['POSTHOG_HOST'],
+        enableExceptionAutocapture: true,
+    }
+)

@@ -15,10 +15,10 @@ import type React from "react"
 import { useMemo, useState } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { ActivePayment } from "./activate-payment"
 import type { OrgSettings, Settings } from "@bitlasso/sdk"
 import { Label } from "../ui/label"
 import { Switch } from "../ui/switch"
+import { Spinner } from "../ui/spinner"
 
 export type LineItem = {
     id: string
@@ -29,22 +29,17 @@ export type LineItem = {
 
 export type PaymentRequestData = {
     items: LineItem[]
-    feeSats?: number
-    credits?: number
     discountRate: number
 }
 
 type Props = {
     settings: Settings
     onSubmit: (data: PaymentRequestData) => Promise<void>
-    onPurchaseCredits: (amount: number) => Promise<void>
     price: number
-    creditBalance: number
-    satsBalance: number
     orgSettings?: OrgSettings
 }
 
-export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price, settings, creditBalance, satsBalance, onPurchaseCredits, orgSettings }) => {
+export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, orgSettings }) => {
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
 
@@ -103,13 +98,11 @@ export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price, settings,
 
     const validItems = items.filter(item => item.title.trim() && item.amount > 0)
 
-    const handleActivatePayment = async (feeSats?: number, credits?: number) => {
+    const handleActivatePayment = async () => {
         try {
             setLoading(true)
             await onSubmit({
                 items: validItems,
-                feeSats,
-                credits,
                 discountRate
             })
             setLoading(false)
@@ -256,7 +249,7 @@ export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price, settings,
                                     <Label htmlFor="allow-discount" className="hover:cursor-pointer">Enable token redemption</Label>
                                     <p className="text-xs text-muted-foreground">Customers can use their loyalty tokens to reduce the total at checkout.</p>
                                 </div>
-                                <Switch checked={allowDiscount} onCheckedChange={handleActiveDiscount} id="allow-discount"/>
+                                <Switch checked={allowDiscount} onCheckedChange={handleActiveDiscount} id="allow-discount" />
                             </div>
                             {allowDiscount &&
                                 <div className="flex flex-col gap-2">
@@ -267,8 +260,8 @@ export const PaymentRequestForm: React.FC<Props> = ({ onSubmit, price, settings,
                             }
                         </CardContent>
                     </Card>
-                    {ready && <DialogFooter>
-                        <ActivePayment settings={settings} loading={loading} price={price} onSubmit={handleActivatePayment} creditBalance={creditBalance} onPurchaseCredits={onPurchaseCredits} satsBalance={satsBalance} />
+                    {ready && <DialogFooter >
+                        <Button onClick={handleActivatePayment} className="w-full">{loading ? <Spinner /> : 'Create'}</Button>
                     </DialogFooter>}
                     <DialogClose asChild><Button variant="outline" className="w-full bg-white" onClick={() => setLoading(false)}>Cancel</Button></DialogClose>
                 </div>
