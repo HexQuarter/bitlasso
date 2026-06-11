@@ -28,7 +28,7 @@ export const SettingsPage = () => {
     const [mnemonic, setMnemonic] = useState<string[]>([])
     const [saveNotifLoading, setSaveNotifLoading] = useState(false)
     const [hasSecuredMnemonic, setHashSecureMnemonic] = useState(localStorage.getItem('BITLASSO_SECURED_MNEMONIC') || 'false')
-    const [jsSnippet, setJsSnippet] = useState(`import { initializeWallet, Client } from '@bitlasso/sdk'
+    const [jsSnippet, _setJsSnippet] = useState(`import { initializeWallet, Client } from '@bitlasso/sdk'
 
 const wallet = await initializeWallet({
     seed: { type: 'mnemonic', mnemonic: '' },
