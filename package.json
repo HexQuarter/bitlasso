@@ -9,10 +9,9 @@
   "scripts": {
     "dev": "npm run dev --workspace=packages/ui",
     "dev:server": "PORT=4000 npm run dev --workspace=packages/server",
-    "build": "npm run build --workspace=packages/sdk && npm run build --workspace=packages/ui && npm run build --workspace=packages/server",
+    "build": "npm run build --workspace=packages/sdk && npm run build --workspace=packages/ui",
     "build:sdk": "npm run build --workspace=packages/sdk",
     "build:ui": "npm run build --workspace=packages/ui",
-    "build:server": "npm run build --workspace=packages/server",
     "lint": "npm run lint --workspace=packages/ui",
     "preview": "npm run preview --workspace=packages/ui",
     "clean": "rm -rf packages/*/dist packages/*/node_modules node_modules"
